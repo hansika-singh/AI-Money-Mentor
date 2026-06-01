@@ -16,6 +16,35 @@ from .money_score import calculate_money_score
 # ✅ CORRECT WAY
 client = Groq(api_key=os.getenv("GROQ_API_KEY", "YOUR_API_KEY"))
 
+# ---------------- 🔢 ROBUST FINANCIAL NUMBER PARSER ----------------
+def extract_financial_numbers(query):
+    query_clean = query.lower()
+    # Matches numbers with optional commas/decimals and optional financial scale suffixes
+    pattern = r"(\d[\d,]*\.?\d*)\s*(lakh[s]?|l|crore[s]?|cr|k|thousand[s]?|m|million[s]?)?"
+    matches = re.finditer(pattern, query_clean)
+    
+    nums = []
+    for match in matches:
+        num_str = match.group(1).replace(",", "")
+        if not num_str or num_str == ".":
+            continue
+        try:
+            val = float(num_str)
+            suffix = match.group(2)
+            if suffix:
+                if "lakh" in suffix or suffix == "l":
+                    val *= 100000
+                elif "crore" in suffix or suffix == "cr":
+                    val *= 10000000
+                elif "thousand" in suffix or suffix == "k":
+                    val *= 1000
+                elif "million" in suffix or suffix == "m":
+                    val *= 1000000
+            nums.append(val)
+        except ValueError:
+            continue
+    return nums
+
 # ---------------- 🔍 ROUTER ----------------
 def route_query(query):
     query = query.lower()
@@ -55,7 +84,7 @@ def ai_agent(client, query): # add the Groq client here since we mentioned it in
 # ---------------- 📈 SIP ----------------
 def sip_agent(query):
     try:
-        nums = list(map(float, re.findall(r"\d+", query)))
+        nums = extract_financial_numbers(query)
 
         if len(nums) >= 3:
             monthly, rate, years = nums[0], nums[1], int(nums[2])
@@ -72,7 +101,7 @@ def sip_agent(query):
 # ---------------- 💸 TAX ----------------
 def tax_agent(query):
     try:
-        income = float(re.findall(r"\d+", query)[0])
+        income = extract_financial_numbers(query)[0]
         tax_res = calculate_tax(income)
         new_tax = tax_res["new_regime"]["total_tax"]
         old_tax = tax_res["old_regime"]["total_tax"]
@@ -115,7 +144,7 @@ def stock_agent(query):
 # ---------------- 💰 SCORE ----------------
 def score_agent(query):
     try:
-        nums = list(map(float, re.findall(r"\d+", query)))
+        nums = extract_financial_numbers(query)
 
         if len(nums) >= 6:
             score = calculate_money_score(*nums[:6])
