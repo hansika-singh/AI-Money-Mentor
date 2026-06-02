@@ -44,6 +44,50 @@ def home():
     return render_template("index.html")
 
 
+# ---------------- HEALTH CHECK ----------------
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Lightweight liveness probe for deployment environments (Docker, Railway, etc.)."""
+    return jsonify({"status": "ok", "service": "AI Money Mentor"}), 200
+
+
+# ---------------- ERROR HANDLERS ----------------
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({
+        "error": "Bad Request",
+        "message": str(error),
+        "status_code": 400
+    }), 400
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "error": "Not Found",
+        "message": "The requested endpoint does not exist.",
+        "status_code": 404
+    }), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(error):
+    return jsonify({
+        "error": "Method Not Allowed",
+        "message": str(error),
+        "status_code": 405
+    }), 405
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": "An unexpected error occurred. Please try again later.",
+        "status_code": 500
+    }), 500
+
+
 # ---------------- 🤖 AI CHAT ----------------
 @app.route("/chat", methods=["POST"])
 def chat():
