@@ -155,8 +155,19 @@ def portfolio():
 @app.route("/tax", methods=["POST"])
 def tax():
     try:
-        income = float(request.json["income"])
-        return jsonify({"tax": calculate_tax(income)})
+        data = request.json
+        income = float(data["income"])
+        deduction_80c = float(data.get("deduction_80c", 0.0))
+        deduction_80d = float(data.get("deduction_80d", 0.0))
+        deduction_hra = float(data.get("deduction_hra", 0.0))
+        
+        result = calculate_tax(
+            income,
+            deduction_80c=deduction_80c,
+            deduction_80d=deduction_80d,
+            deduction_hra=deduction_hra
+        )
+        return jsonify({"tax": result})
 
     except Exception as e:
         return jsonify({"error": str(e)})
