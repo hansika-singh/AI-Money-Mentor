@@ -102,26 +102,66 @@ def internal_server_error(error):
 @app.route("/chat", methods=["POST"])
 def chat():
     try:
-        msg = request.json.get("message")
+        data = request.json
+        msg = data.get("message")
+        history = data.get("history", [])
+
+        # Build messages: system prompt + last 10 history turns + current message
+        messages = [{"role": "system", "content": "You are a financial advisor for India."}]
+        messages += history[-10:]
+        messages.append({"role": "user", "content": msg})
 
         res = client.chat.completions.create(
+
+    model="llama-3.1-8b-instant",
+    messages=[
+        {
+            "role": "system",
+            "content": """
+You are an expert AI financial advisor for Indian users.
+
             model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a financial advisor for India."},
-                {"role": "user", "content": msg}
-            ]
+            messages=messages
         )
 
+
+Your job:
+- Help users manage money smartly
+- Teach budgeting, saving, and investing
+- Give simple, practical, real-life advice
+
+Response rules:
+- Always use structured format:
+
+Income / Situation Summary:
+- ...
+
+Budget Breakdown (if applicable):
+- Needs: 50%
+- Wants: 30%
+- Savings: 20%
+
+Advice:
+- Give clear steps
+- Keep it simple and actionable
+
+Tone:
+- Friendly, practical, and easy to understand
+"""
+        },
+        {"role": "user", "content": msg}
+    ]
+)
         return jsonify({
             "reply": res.choices[0].message.content
         })
 
     except Exception as e:
-    	app.logger.error(f"Groq API Error: {str(e)}")
+        app.logger.error(f"Groq API Error: {str(e)}")
 
-    	return jsonify({
-        	"reply": "Unable to generate a response at the moment. Please try again later."
-    	}), 500
+        return jsonify({
+            "reply": "Unable to generate a response at the moment. Please try again later."
+        }), 500
 
 
 # ---------------- 💸 SIP ----------------
@@ -132,9 +172,15 @@ def sip():
         result = calculate_sip(
             float(data["monthly"]),
             float(data["rate"]),
-            int(data["years"])
+            int(data["years"]),
+            float(data.get("inflation", 0.0))
         )
-        return jsonify({"future_value": result})
+        return jsonify({
+            "future_value": result["nominal_value"],
+            "nominal_value": result["nominal_value"],
+            "inflation_adjusted_value": result["inflation_adjusted_value"],
+            "inflation_applied": result["inflation_applied"]
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -155,8 +201,19 @@ def portfolio():
 @app.route("/tax", methods=["POST"])
 def tax():
     try:
-        income = float(request.json["income"])
-        return jsonify({"tax": calculate_tax(income)})
+        data = request.json
+        income = float(data["income"])
+        deduction_80c = float(data.get("deduction_80c", 0.0))
+        deduction_80d = float(data.get("deduction_80d", 0.0))
+        deduction_hra = float(data.get("deduction_hra", 0.0))
+        
+        result = calculate_tax(
+            income,
+            deduction_80c=deduction_80c,
+            deduction_80d=deduction_80d,
+            deduction_hra=deduction_hra
+        )
+        return jsonify({"tax": result})
 
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -313,4 +370,15 @@ def delete_item():
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
+
     app.run(debug=debug_mode)
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+    app.run(debug=debug_mode)
+

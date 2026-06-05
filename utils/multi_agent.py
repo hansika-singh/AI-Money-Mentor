@@ -13,8 +13,11 @@ from .tax import calculate_tax
 from .stock import get_stock_price
 from .money_score import calculate_money_score
 
-# Groq client — key is validated at startup in app.py; no fallback here.
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# Groq client — key is validated at startup in app.py; conditional initialization here
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+client = None
+if GROQ_API_KEY and GROQ_API_KEY.strip() not in ("", "your_groq_api_key_here"):
+    client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------- 🔢 ROBUST FINANCIAL NUMBER PARSER ----------------
 def extract_financial_numbers(query):
@@ -89,7 +92,7 @@ def sip_agent(query):
         if len(nums) >= 3:
             monthly, rate, years = nums[0], nums[1], int(nums[2])
             result = calculate_sip(monthly, rate, years)
-            return f"SIP Future Value: ₹ {round(result, 2)}"
+            return f"SIP Future Value: ₹ {round(result['nominal_value'], 2)}"
 
         return "Provide: SIP amount, rate, years"
 
