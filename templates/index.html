@@ -1713,8 +1713,10 @@
             <div><label>Emergency Fund (₹)</label><input type="number" required min="0" id="s_emergency"
                 placeholder="e.g. 240000"></div>
           </div>
-          <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="calcScore()" id="scoreBtn">Calculate
-            Money Score</button>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-gold" style="flex:1" onclick="calcScore()" id="scoreBtn">Calculate Money Score</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="resetScore()" id="scoreResetBtn">Reset</button>
+          </div>
           <div id="scoreResult" class="result-box"></div>
         </div>
         <div class="card" style="min-height: 380px;">
@@ -1744,9 +1746,10 @@
           <label>Investment Period (Years)</label>
           <input type="number" required min="0" id="sip_years" placeholder="e.g. 10">
 
-          <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="calcSIP()" id="sipBtn">
-            Calculate
-          </button>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-gold" style="flex:1" onclick="calcSIP()" id="sipBtn">Calculate</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="resetSIP()" id="sipResetBtn">Reset</button>
+          </div>
 
           <div id="sipResult" class="result-box"></div>
         </div>
@@ -1772,9 +1775,10 @@
           <label>Stock Symbol</label>
           <input type="text" id="stockSym" placeholder="e.g. TCS, RELIANCE, AAPL">
 
-          <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="checkStock()" id="stockBtn">
-            Get Price
-          </button>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-gold" style="flex:1" onclick="checkStock()" id="stockBtn">Get Price</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="resetStock()" id="stockResetBtn">Reset</button>
+          </div>
 
           <div id="stockResult" class="result-box"></div>
         </div>
@@ -1796,9 +1800,10 @@
           <div class="card-title">Income Tax Calculator (New Regime)</div>
           <label>Gross Annual Income (₹)</label>
           <input type="number" required min="0" id="taxIncome" placeholder="e.g. 1200000">
-          <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="calcTax()" id="taxBtn">
-            Calculate Tax
-          </button>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-gold" style="flex:1" onclick="calcTax()" id="taxBtn">Calculate Tax</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="resetTax()" id="taxResetBtn">Reset</button>
+          </div>
           <div id="taxResult" class="result-box"></div>
         </div>
         <div class="card" id="taxComparisonCard" style="display:none; min-height: 280px;">
@@ -2083,6 +2088,56 @@
         if (sidebar) sidebar.classList.remove('open');
         overlay.classList.remove('active');
       });
+    }
+
+    /* ── RESET FUNCTIONS ── */
+    function resetScore() {
+      document.getElementById('s_income').value = '';
+      document.getElementById('s_expenses').value = '';
+      document.getElementById('s_savings').value = '';
+      document.getElementById('s_invest').value = '';
+      document.getElementById('s_debt').value = '';
+      document.getElementById('s_emergency').value = '';
+      const res = document.getElementById('scoreResult');
+      res.innerHTML = '';
+      res.classList.remove('visible');
+      if (scoreChartInstance) {
+        scoreChartInstance.destroy();
+        scoreChartInstance = null;
+      }
+    }
+
+    function resetSIP() {
+      document.getElementById('sip_monthly').value = '';
+      document.getElementById('sip_rate').value = '';
+      document.getElementById('sip_years').value = '';
+      const res = document.getElementById('sipResult');
+      res.innerHTML = '';
+      res.classList.remove('visible');
+      if (sipChartInstance) {
+        sipChartInstance.destroy();
+        sipChartInstance = null;
+      }
+    }
+
+    function resetStock() {
+      document.getElementById('stockSym').value = '';
+      const res = document.getElementById('stockResult');
+      res.innerHTML = '';
+      res.classList.remove('visible');
+      if (stockChartInstance) {
+        stockChartInstance.destroy();
+        stockChartInstance = null;
+      }
+    }
+
+    function resetTax() {
+      document.getElementById('taxIncome').value = '';
+      const res = document.getElementById('taxResult');
+      res.innerHTML = '';
+      res.classList.remove('visible');
+      const compCard = document.getElementById('taxComparisonCard');
+      if (compCard) compCard.style.display = 'none';
     }
 
     /* ══════════════════════════════════════════════
