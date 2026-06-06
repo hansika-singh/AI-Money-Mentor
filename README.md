@@ -14,6 +14,7 @@
 <img src="https://img.shields.io/badge/License-MIT-22c55e?style=flat-square"/>
 <img src="https://img.shields.io/badge/Status-Active-6C63FF?style=flat-square"/>
 <img src="https://img.shields.io/github/stars/omroy07/AI-Money-Mentor?style=flat-square&color=FFD700"/>
+<img src="https://img.shields.io/github/issues/omroy07/AI-Money-Mentor?style=flat-square&color=e94560&label=Issues"/>
 
 </div>
 
@@ -168,6 +169,22 @@ AI-Money-Mentor/
 | 💡 | Multi-Agent AI System |
 | 💡 | Tax Optimization Module |
 | 💡 | Crypto & DeFi Dashboard |
+
+---
+
+## 🐛 Issues & Feedback
+
+Found a bug or have a feature request? [Open an issue](https://github.com/omroy07/AI-Money-Mentor/issues) — contributions and feedback are always welcome!
+
+<div align="center">
+<a href="https://github.com/omroy07/AI-Money-Mentor/issues/new?template=bug_report.md">
+  <img src="https://img.shields.io/badge/🐛_Report_a_Bug-e94560?style=for-the-badge"/>
+</a>
+&nbsp;
+<a href="https://github.com/omroy07/AI-Money-Mentor/issues/new?template=feature_request.md">
+  <img src="https://img.shields.io/badge/💡_Request_a_Feature-6C63FF?style=for-the-badge"/>
+</a>
+</div>
 
 ---
 
