@@ -167,15 +167,31 @@ pytest tests/ --cov=utils --cov-report=term-missing
 
 ## Commit Message Convention
 
-This project follows [Conventional Commits](https://www.conventionalcommits.org/).
+This project follows [Conventional Commits](https://www.conventionalcommits.org/). Commit linting is enforced via `pre-commit` hooks.
+
+### Setup pre-commit hooks (one-time)
+
+```bash
+# Install pre-commit
+pip install -r dev-requirements.txt
+
+# Install the git hooks
+pre-commit install --hook-type commit-msg
+```
+
+After setup, any commit that doesn't follow the convention will be rejected.
+
+### Format
 
 ```
 <type>: <short imperative description>
 
 [Optional body: explain *why*, not *what*]
 
-Closes #<issue-number>
+[Optional footer: Closes #<issue-number>]
 ```
+
+**Note:** Body and footer are optional. For simple changes, just the first line is enough.
 
 ### Allowed types
 
@@ -191,20 +207,36 @@ Closes #<issue-number>
 | `perf` | Performance improvements |
 | `chore` | Dependency updates, housekeeping |
 
-### ✅ Good examples
+### ✅ Good examples (all valid)
+
+One-liner (most common):
 ```
 fix: prevent index corruption in delete-item endpoint
 feat: add /health liveness probe for deployment environments
 docs: add local setup instructions to CONTRIBUTING.md
 test: add parametrized edge-case tests for money_score
+chore: update groq dependency to 1.5.0
 ```
 
-### ❌ Avoid
+With body (for context):
+```
+fix: prevent index corruption in delete-item endpoint
+
+The delete operation was using array index instead of item ID.
+This caused the wrong item to be removed when items were sorted.
+
+Closes #45
+```
+
+### ❌ Invalid (will be rejected)
+
 ```
 fixed stuff
 update code
 changes made
 final commit
+WIP
+Updated the thing
 ```
 
 ---
