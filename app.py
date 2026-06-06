@@ -143,40 +143,15 @@ def chat():
         history = data.get("history", [])
 
         # Build messages: system prompt + last 10 history turns + current message
-        system_content = """You are an expert AI financial advisor for Indian users.
-
-Your job:
-- Help users manage money smartly
-- Teach budgeting, saving, and investing
-- Give simple, practical, real-life advice
-
-Response rules:
-- Always use structured format:
-
-Income / Situation Summary:
-- ...
-
-Budget Breakdown (if applicable):
-- Needs: 50%
-- Wants: 30%
-- Savings: 20%
-
-Advice:
-- Give clear steps
-- Keep it simple and actionable
-
-Tone:
-- Friendly, practical, and easy to understand"""
-
-        messages = [{"role": "system", "content": system_content}]
-        for h in history[-10:]:
-            messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+        messages = [{"role": "system", "content": "You are a financial advisor for India."}]
+        messages += history[-10:]
         messages.append({"role": "user", "content": msg})
 
         res = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages
         )
+
         return jsonify({
             "reply": res.choices[0].message.content
         })
@@ -392,152 +367,27 @@ def add_liability():
 def delete_item():
     try:
         data = request.json
-        item_type = data["type"] # 'asset' or 'liability'
-        item_id = int(data["id"]) # positional index from the frontend
+        item_type = data["type"]  # 'asset' or 'liability'
+        item_db_id = int(data["id"])  # stable database id from the frontend
 
-        if item_type == 'asset':
-            rows = Asset.query.order_by(Asset.id).all()
-            db.session.delete(rows[item_id])
+        if item_type == "asset":
+            item = Asset.query.get(item_db_id)
         else:
-            rows = Liability.query.order_by(Liability.id).all()
-            db.session.delete(rows[item_id])
+            item = Liability.query.get(item_db_id)
 
+        if not item:
+            return jsonify({"error": f"Item not found (type={item_type}, id={item_db_id})"}), 404
+
+        db.session.delete(item)
         db.session.commit()
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-# Helper to check budget thresholds
-def run_threshold_checks(category, year_month=None):
-    if not year_month:
-        import datetime
-        year_month = datetime.datetime.now().strftime("%Y-%m")
-        
-    limit = BudgetLimit.query.filter_by(category=category).first()
-    if not limit or limit.limit_amount <= 0:
-        return []
-        
-    expenses = Expense.query.filter(
-        Expense.category == category,
-        Expense.date.like(f"{year_month}%")
-    ).all()
-    
-    total_spent = sum(e.amount for e in expenses)
-    pct = total_spent / limit.limit_amount
-    
-    triggered = []
-    for threshold in [100, 90, 80]:
-        target = threshold / 100.0
-        if pct >= target:
-            exists = BudgetAlert.query.filter_by(
-                category=category,
-                year_month=year_month,
-                threshold=threshold
-            ).first()
-            if not exists:
-                alert = BudgetAlert(
-                    category=category,
-                    year_month=year_month,
-                    threshold=threshold
-                )
-                db.session.add(alert)
-                triggered.append(threshold)
-                print(
-                    f"\n[EMAIL ALERT] To: user@example.com\n"
-                    f"Subject: Budget Alert: {category} spending reached {threshold}%\n"
-                    f"Body: You have spent ₹{total_spent:.2f} of your ₹{limit.limit_amount:.2f} limit in category '{category}'.\n",
-                    file=sys.stderr
-                )
-    if triggered:
-        db.session.commit()
-    return triggered
-
-
-# ---------------- SMART BUDGET ALERTS ----------------
-
-@app.route("/budget/limits", methods=["GET", "POST"])
-def budget_limits():
-    if request.method == "POST":
-        try:
-            data = request.json
-            category = data["category"]
-            limit_amount = float(data["limit_amount"])
-            
-            limit = BudgetLimit.query.filter_by(category=category).first()
-            if limit:
-                limit.limit_amount = limit_amount
-            else:
-                limit = BudgetLimit(category=category, limit_amount=limit_amount)
-                db.session.add(limit)
-            db.session.commit()
-            return jsonify({"status": "success"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-    else:
-        limits = BudgetLimit.query.order_by(BudgetLimit.category).all()
-        return jsonify([l.to_dict() for l in limits])
-
-@app.route("/budget/status", methods=["GET"])
-def budget_status():
-    import datetime
-    year_month = request.args.get("month", datetime.datetime.now().strftime("%Y-%m"))
-    
-    limits = BudgetLimit.query.all()
-    limits_dict = {l.category: l.limit_amount for l in limits}
-    
-    expenses = Expense.query.filter(Expense.date.like(f"{year_month}%")).all()
-    
-    spent_by_category = {}
-    for e in expenses:
-        spent_by_category[e.category] = spent_by_category.get(e.category, 0.0) + e.amount
-        
-    status_list = []
-    all_categories = set(limits_dict.keys()) | set(spent_by_category.keys())
-    
-    for cat in sorted(all_categories):
-        lim = limits_dict.get(cat, 0.0)
-        spent = spent_by_category.get(cat, 0.0)
-        pct = (spent / lim * 100) if lim > 0 else 0.0
-        status_list.append({
-            "category": cat,
-            "limit_amount": lim,
-            "spent": spent,
-            "percentage": round(pct, 2)
-        })
-        
-    return jsonify({
-        "month": year_month,
-        "categories": status_list,
-        "total_budgeted": sum(limits_dict.values()),
-        "total_spent": sum(spent_by_category.values())
-    })
-
-@app.route("/budget/alerts", methods=["GET"])
-def budget_alerts():
-    alerts = BudgetAlert.query.order_by(BudgetAlert.triggered_at.desc()).limit(10).all()
-    return jsonify([a.to_dict() for a in alerts])
-
-
-# ---------------- SCHEDULER ----------------
-from apscheduler.schedulers.background import BackgroundScheduler
-
-def check_all_budgets_job():
-    with app.app_context():
-        import datetime
-        ym = datetime.datetime.now().strftime("%Y-%m")
-        limits = BudgetLimit.query.all()
-        for limit in limits:
-            run_threshold_checks(limit.category, ym)
-
-if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(check_all_budgets_job, 'interval', days=1)
-    scheduler.start()
-
-
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
     app.run(debug=debug_mode)
+
 
