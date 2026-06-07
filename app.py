@@ -8,9 +8,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file (if present)
 load_dotenv()
 
-# ── Startup validation ───────────────────────────────────────
-# Fail fast and clearly if the required API key is missing.
-# Copy .env.example → .env and set your GROQ_API_KEY.
+# Log a warning to console if API key is missing, enabling offline mode.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
     print(
@@ -53,7 +51,6 @@ if os.getenv("FLASK_ENV", "development") != "production":
         print("[OK] Groq client initialised successfully.")
     else:
         print("[WARNING] Groq client is running in offline mode.")
-# ---------------- HOME / PAGES ----------------
 @app.route("/")
 def home():
     return render_template("dashboard.html", active_page="dashboard")
@@ -143,34 +140,28 @@ def chat():
         history = data.get("history", [])
 
         # Build messages: system prompt + last 10 history turns + current message
-        system_content = """You are an expert AI financial advisor for Indian users.
-
-Your job:
-- Help users manage money smartly
-- Teach budgeting, saving, and investing
-- Give simple, practical, real-life advice
-
-Response rules:
-- Always use structured format:
-
-Income / Situation Summary:
-- ...
-
-Budget Breakdown (if applicable):
-- Needs: 50%
-- Wants: 30%
-- Savings: 20%
-
-Advice:
-- Give clear steps
-- Keep it simple and actionable
-
-Tone:
-- Friendly, practical, and easy to understand"""
-
-        messages = [{"role": "system", "content": system_content}]
-        for h in history[-10:]:
-            messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+        system_prompt = (
+            "You are an expert AI financial advisor for Indian users.\n\n"
+            "Your job:\n"
+            "- Help users manage money smartly\n"
+            "- Teach budgeting, saving, and investing\n"
+            "- Give simple, practical, real-life advice\n\n"
+            "Response rules:\n"
+            "- Always use structured format:\n"
+            "Income / Situation Summary:\n"
+            "- ...\n"
+            "Budget Breakdown (if applicable):\n"
+            "- Needs: 50%\n"
+            "- Wants: 30%\n"
+            "- Savings: 20%\n"
+            "Advice:\n"
+            "- Give clear steps\n"
+            "- Keep it simple and actionable\n\n"
+            "Tone:\n"
+            "- Friendly, practical, and easy to understand"
+        )
+        messages = [{"role": "system", "content": system_prompt}]
+        messages += history[-10:]
         messages.append({"role": "user", "content": msg})
 
         res = client.chat.completions.create(
@@ -183,7 +174,6 @@ Tone:
 
     except Exception as e:
         app.logger.error(f"Groq API Error: {str(e)}")
-
         return jsonify({
             "reply": "Unable to generate a response at the moment. Please try again later."
         }), 500
@@ -236,13 +226,47 @@ def tax():
         deduction_80d = float(data.get("deduction_80d", 0.0))
         deduction_hra = float(data.get("deduction_hra", 0.0))
         
-        result = calculate_tax(
+        tax_details = calculate_tax(
             income,
             deduction_80c=deduction_80c,
             deduction_80d=deduction_80d,
             deduction_hra=deduction_hra
         )
-        return jsonify({"tax": result})
+        
+        # AI Tax-saving advice
+        recommendations = "You are already in the zero-tax bracket! No additional tax-saving investments are required."
+        
+        recommended_regime = tax_details.get("recommended", "New Regime")
+        regime_key = "new_regime" if recommended_regime == "New Regime" else "old_regime"
+        total_tax = tax_details.get(regime_key, {}).get("total_tax", 0.0)
+        
+        # Only query AI if there is actual tax payable and client is available
+        if total_tax > 0.0 and client:
+            prompt = (
+                f"A user in India has a gross annual income of ₹{income:,} and has a total tax liability of "
+                f"₹{total_tax:,} under the recommended {recommended_regime}.\n\n"
+                f"Generate a customized list of tax-saving investment recommendations for them. "
+                f"Suggest specific options under Section 80C (up to 1.5L, e.g. ELSS, PPF), Section 80CCD(1B) (up to 50k in NPS), "
+                f"and Section 80D (Health Insurance). Be brief and format the response as a bulleted list with clear estimated tax savings."
+            )
+            
+            try:
+                ai_res = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": "You are a professional Indian tax consultant. Give brief, actionable advice."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                recommendations = ai_res.choices[0].message.content.strip()
+            except Exception as ai_err:
+                app.logger.error(f"Tax AI Recommendation Error: {str(ai_err)}")
+                recommendations = "AI Tax recommendations are currently unavailable. Consider investing in ELSS or NPS to reduce your tax."
+        elif total_tax > 0.0:
+            recommendations = "AI Tax recommendations are currently offline (no GROQ_API_KEY configured). Consider investing in ELSS or NPS to reduce your tax."
+                
+        tax_details["ai_recommendations"] = recommendations
+        return jsonify({"tax": tax_details})
 
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -263,6 +287,10 @@ def upload():
 # ---------------- 🧠 MULTI AGENT ----------------
 @app.route("/agent", methods=["POST"])
 def run_agent_route():
+    if not client:
+        return jsonify({
+            "error": "AI Agent is offline: GROQ_API_KEY is not configured on the server."
+        })
     try:
         if client is None:
             return jsonify({
@@ -344,7 +372,14 @@ def calculate():
 @app.route("/insights", methods=["GET"])
 def expense_insights():
     expense_data = [e.to_dict() for e in Expense.query.order_by(Expense.id).all()]
-    result =insights(client,expense_data)
+    if not client:
+        # Calculate standard expenses metrics but return fallback AI insights content
+        totals = calculate_expense(expense_data)
+        return jsonify({
+            "insights": "<div class=\"insight-card\"><h3>AI Insights Offline</h3><p>Personalized AI savings suggestions are currently offline because the GROQ_API_KEY is not configured on the server. Please configure it to enable insights.</p></div>",
+            "summary": totals
+        })
+    result = insights(client, expense_data)
     return jsonify(result)
 
 # ---------------- NET WORTH TRACKER ----------------
@@ -354,8 +389,8 @@ def expense_insights():
 def get_net_worth():
     assets = Asset.query.order_by(Asset.id).all()
     liabilities = Liability.query.order_by(Liability.id).all()
-    assets_data = [a.to_dict() for a in assets]
-    liabilities_data = [l.to_dict() for l in liabilities]
+    assets_data = [a.to_dict(i) for i, a in enumerate(assets)]
+    liabilities_data = [l.to_dict(i) for i, l in enumerate(liabilities)]
     total_assets = sum(item['amount'] for item in assets_data)
     total_liabilities = sum(item['amount'] for item in liabilities_data)
     return jsonify({
@@ -393,15 +428,15 @@ def delete_item():
     try:
         data = request.json
         item_type = data["type"]  # 'asset' or 'liability'
-        item_id = int(data["id"])  # real database primary key (not a list index)
+        item_db_id = int(data["id"])  # stable database id from the frontend
 
-        if item_type == 'asset':
-            item = db.session.get(Asset, item_id)
+        if item_type == "asset":
+            item = Asset.query.get(item_db_id)
         else:
-            item = db.session.get(Liability, item_id)
+            item = Liability.query.get(item_db_id)
 
-        if item is None:
-            return jsonify({"error": "Item not found"}), 404
+        if not item:
+            return jsonify({"error": f"Item not found (type={item_type}, id={item_db_id})"}), 404
 
         db.session.delete(item)
         db.session.commit()
@@ -409,137 +444,9 @@ def delete_item():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
-# Helper to check budget thresholds
-def run_threshold_checks(category, year_month=None):
-    if not year_month:
-        import datetime
-        year_month = datetime.datetime.now().strftime("%Y-%m")
-        
-    limit = BudgetLimit.query.filter_by(category=category).first()
-    if not limit or limit.limit_amount <= 0:
-        return []
-        
-    expenses = Expense.query.filter(
-        Expense.category == category,
-        Expense.date.like(f"{year_month}%")
-    ).all()
-    
-    total_spent = sum(e.amount for e in expenses)
-    pct = total_spent / limit.limit_amount
-    
-    triggered = []
-    for threshold in [100, 90, 80]:
-        target = threshold / 100.0
-        if pct >= target:
-            exists = BudgetAlert.query.filter_by(
-                category=category,
-                year_month=year_month,
-                threshold=threshold
-            ).first()
-            if not exists:
-                alert = BudgetAlert(
-                    category=category,
-                    year_month=year_month,
-                    threshold=threshold
-                )
-                db.session.add(alert)
-                triggered.append(threshold)
-                print(
-                    f"\n[EMAIL ALERT] To: user@example.com\n"
-                    f"Subject: Budget Alert: {category} spending reached {threshold}%\n"
-                    f"Body: You have spent ₹{total_spent:.2f} of your ₹{limit.limit_amount:.2f} limit in category '{category}'.\n",
-                    file=sys.stderr
-                )
-    if triggered:
-        db.session.commit()
-    return triggered
-
-
-# ---------------- SMART BUDGET ALERTS ----------------
-
-@app.route("/budget/limits", methods=["GET", "POST"])
-def budget_limits():
-    if request.method == "POST":
-        try:
-            data = request.json
-            category = data["category"]
-            limit_amount = float(data["limit_amount"])
-            
-            limit = BudgetLimit.query.filter_by(category=category).first()
-            if limit:
-                limit.limit_amount = limit_amount
-            else:
-                limit = BudgetLimit(category=category, limit_amount=limit_amount)
-                db.session.add(limit)
-            db.session.commit()
-            return jsonify({"status": "success"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
-    else:
-        limits = BudgetLimit.query.order_by(BudgetLimit.category).all()
-        return jsonify([l.to_dict() for l in limits])
-
-@app.route("/budget/status", methods=["GET"])
-def budget_status():
-    import datetime
-    year_month = request.args.get("month", datetime.datetime.now().strftime("%Y-%m"))
-    
-    limits = BudgetLimit.query.all()
-    limits_dict = {l.category: l.limit_amount for l in limits}
-    
-    expenses = Expense.query.filter(Expense.date.like(f"{year_month}%")).all()
-    
-    spent_by_category = {}
-    for e in expenses:
-        spent_by_category[e.category] = spent_by_category.get(e.category, 0.0) + e.amount
-        
-    status_list = []
-    all_categories = set(limits_dict.keys()) | set(spent_by_category.keys())
-    
-    for cat in sorted(all_categories):
-        lim = limits_dict.get(cat, 0.0)
-        spent = spent_by_category.get(cat, 0.0)
-        pct = (spent / lim * 100) if lim > 0 else 0.0
-        status_list.append({
-            "category": cat,
-            "limit_amount": lim,
-            "spent": spent,
-            "percentage": round(pct, 2)
-        })
-        
-    return jsonify({
-        "month": year_month,
-        "categories": status_list,
-        "total_budgeted": sum(limits_dict.values()),
-        "total_spent": sum(spent_by_category.values())
-    })
-
-@app.route("/budget/alerts", methods=["GET"])
-def budget_alerts():
-    alerts = BudgetAlert.query.order_by(BudgetAlert.triggered_at.desc()).limit(10).all()
-    return jsonify([a.to_dict() for a in alerts])
-
-
-# ---------------- SCHEDULER ----------------
-from apscheduler.schedulers.background import BackgroundScheduler
-
-def check_all_budgets_job():
-    with app.app_context():
-        import datetime
-        ym = datetime.datetime.now().strftime("%Y-%m")
-        limits = BudgetLimit.query.all()
-        for limit in limits:
-            run_threshold_checks(limit.category, ym)
-
-if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(check_all_budgets_job, 'interval', days=1)
-    scheduler.start()
-
-
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
     app.run(debug=debug_mode)
+
 
