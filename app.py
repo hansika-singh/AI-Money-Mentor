@@ -571,10 +571,15 @@ def add_asset():
             raise ValidationError("Request body must be a JSON object")
         name = validate_string(data.get("name"), "name")
         amount = validate_float(data.get("amount"), "amount", min_val=0.0)
+        date = data.get("date")
+        if date:
+            date = validate_string(date, "date")
         
         asset = Asset()
         asset.name = name
         asset.amount = amount
+        if date:
+            asset.date = date
         db.session.add(asset)
         db.session.commit()
         return jsonify({"status": "success"})
@@ -591,10 +596,15 @@ def add_liability():
             raise ValidationError("Request body must be a JSON object")
         name = validate_string(data.get("name"), "name")
         amount = validate_float(data.get("amount"), "amount", min_val=0.0)
+        date = data.get("date")
+        if date:
+            date = validate_string(date, "date")
         
         liability = Liability()
         liability.name = name
         liability.amount = amount
+        if date:
+            liability.date = date
         db.session.add(liability)
         db.session.commit()
         return jsonify({"status": "success"})

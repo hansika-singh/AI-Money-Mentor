@@ -28,7 +28,8 @@ def test_add_and_get_networth(client):
     # Add an asset
     res = client.post("/add-asset", json={
         "name": "Savings Account",
-        "amount": 50000.0
+        "amount": 50000.0,
+        "date": "2026-06-01"
     })
     assert res.status_code == 200
     assert json.loads(res.data)["status"] == "success"
@@ -36,7 +37,8 @@ def test_add_and_get_networth(client):
     # Add a liability
     res = client.post("/add-liability", json={
         "name": "Credit Card Bill",
-        "amount": 10000.0
+        "amount": 10000.0,
+        "date": "2026-06-02"
     })
     assert res.status_code == 200
     assert json.loads(res.data)["status"] == "success"
@@ -52,8 +54,10 @@ def test_add_and_get_networth(client):
     assert len(data["liabilities"]) == 1
     assert data["assets"][0]["name"] == "Savings Account"
     assert data["assets"][0]["amount"] == 50000.0
+    assert data["assets"][0]["date"] == "2026-06-01"
     assert data["liabilities"][0]["name"] == "Credit Card Bill"
     assert data["liabilities"][0]["amount"] == 10000.0
+    assert data["liabilities"][0]["date"] == "2026-06-02"
 
 def test_delete_networth_item(client):
     # Add an asset
@@ -78,3 +82,27 @@ def test_delete_networth_item(client):
     assert len(data["assets"]) == 0
     assert data["total_assets"] == 0
     assert data["net_worth"] == 0
+
+def test_add_networth_item_default_date(client):
+    # Add an asset without date
+    res = client.post("/add-asset", json={
+        "name": "Cash",
+        "amount": 500.0
+    })
+    assert res.status_code == 200
+    
+    # Add a liability without date
+    res = client.post("/add-liability", json={
+        "name": "Friend Debt",
+        "amount": 200.0
+    })
+    assert res.status_code == 200
+    
+    res = client.get("/net-worth")
+    data = json.loads(res.data)
+    
+    import datetime
+    today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    
+    assert data["assets"][0]["date"] == today
+    assert data["liabilities"][0]["date"] == today
