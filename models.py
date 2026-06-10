@@ -35,6 +35,8 @@ class User(UserMixin, db.Model):
 
 class Portfolio(db.Model):
     __tablename__ = "portfolio"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="portfolio")
     id = db.Column(db.Integer, primary_key=True)
     symbol = db.Column(db.String(20), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -53,6 +55,7 @@ class Portfolio(db.Model):
         pnl_percent = (pnl / invested_value * 100) if invested_value > 0 else 0
         
         return {
+            "user_id": self.user_id,
             "id": self.id,
             "symbol": self.symbol,
             "name": self.name,
@@ -70,6 +73,8 @@ class Portfolio(db.Model):
 
 class PriceAlert(db.Model):
     __tablename__ = "price_alerts"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="price_alerts")
     id = db.Column(db.Integer, primary_key=True)
     symbol = db.Column(db.String(20), nullable=False)
     target_price = db.Column(db.Float, nullable=False)
@@ -79,6 +84,7 @@ class PriceAlert(db.Model):
     
     def to_dict(self):
         return {
+            "user_id": self.user_id,
             "id": self.id,
             "symbol": self.symbol,
             "target_price": self.target_price,
@@ -115,12 +121,15 @@ class Expense(db.Model):
             "user_corrected": self.user_corrected,
             "is_subscription": self.is_subscription,
             "is_recurring": self.is_recurring,
-            "is_anomaly": self.is_anomaly
+            "is_anomaly": self.is_anomaly,
+            "user_id": self.user_id
         }
 
 
 class Asset(db.Model):
     __tablename__ = "assets"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="assets")
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Float, nullable=False)
@@ -130,22 +139,26 @@ class Asset(db.Model):
         # row by stable PK rather than by positional list index. Using a
         # positional index was the root cause of the negative-index silent
         # deletion and out-of-range IndexError bugs (issue #125).
-        return {"id": self.id, "name": self.name, "amount": self.amount}
+        return {"id": self.id, "name": self.name, "amount": self.amount, "user_id": self.user_id}
 
 
 class Liability(db.Model):
     __tablename__ = "liabilities"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="liabilities")
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Float, nullable=False)
 
     def to_dict(self):
         # Same fix as Asset.to_dict -- returns the real PK, not a list index.
-        return {"id": self.id, "name": self.name, "amount": self.amount}
+        return {"id": self.id, "name": self.name, "amount": self.amount, "user_id": self.user_id}
 
 
 class BudgetLimit(db.Model):
     __tablename__ = "budget_limits"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="budget_limits")
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(120), unique=True, nullable=False)
     limit_amount = db.Column(db.Float, nullable=False)
@@ -154,12 +167,15 @@ class BudgetLimit(db.Model):
         return {
             "id": self.id,
             "category": self.category,
-            "limit_amount": self.limit_amount
+            "limit_amount": self.limit_amount,
+            "user_id": self.user_id
         }
 
 
 class BudgetAlert(db.Model):
     __tablename__ = "budget_alerts"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="budget_alerts")
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(120), nullable=False)
     year_month = db.Column(db.String(7), nullable=False)  # e.g., "2026-06"
@@ -172,7 +188,8 @@ class BudgetAlert(db.Model):
             "category": self.category,
             "year_month": self.year_month,
             "threshold": self.threshold,
-            "triggered_at": self.triggered_at.isoformat()
+            "triggered_at": self.triggered_at.isoformat(),
+            "user_id": self.user_id
         }
 
 
@@ -184,6 +201,8 @@ class FinancialGoal(db.Model):
     current_amount = db.Column(db.Float, nullable=False, default=0.0)
     target_date = db.Column(db.String(10), nullable=False)  # YYYY-MM
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="financial_goals")
 
     def to_dict(self):
         progress_percent = (self.current_amount / self.target_amount * 100) if self.target_amount > 0 else 0
@@ -194,5 +213,6 @@ class FinancialGoal(db.Model):
             "current_amount": self.current_amount,
             "progress_percent": round(progress_percent, 2),
             "target_date": self.target_date,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "user_id": self.user_id
         }
