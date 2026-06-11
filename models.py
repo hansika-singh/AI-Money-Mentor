@@ -200,6 +200,9 @@ class FinancialGoal(db.Model):
     target_amount = db.Column(db.Float, nullable=False)
     current_amount = db.Column(db.Float, nullable=False, default=0.0)
     target_date = db.Column(db.String(10), nullable=False)  # YYYY-MM
+
+    # Optional AI-generated plan/tactics
+    ai_milestone_tactics = db.Column(db.Text, nullable=True)  # plain text, 3-5 bullet points
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     user = db.relationship("User", backref="financial_goals")
@@ -216,3 +219,25 @@ class FinancialGoal(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "user_id": self.user_id
         }
+
+
+class FinancialGoalMilestone(db.Model):
+    __tablename__ = "financial_goal_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("financial_goals.id"), nullable=False, index=True)
+    month = db.Column(db.String(7), nullable=False)  # YYYY-MM
+    target_amount_for_month = db.Column(db.Float, nullable=False, default=0.0)
+    status = db.Column(db.String(20), nullable=False, default="planned")  # planned|completed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "goal_id": self.goal_id,
+            "month": self.month,
+            "target_amount_for_month": self.target_amount_for_month,
+            "status": self.status,
+        }
+
+
+
