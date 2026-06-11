@@ -24,4 +24,4 @@ jobs:
         run: python -m pip install pip-audit
 
       - name: Run Vulnerability Scan
-        run: pip-audit -r requirements.txt
+        run: pip-audit -r requirements.txt --vulnerability-service osv

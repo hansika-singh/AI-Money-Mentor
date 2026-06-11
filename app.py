@@ -22,19 +22,31 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
 else:
     client = Groq(api_key=GROQ_API_KEY)
 # ---------------- IMPORT UTILS ----------------
-from utils.sip import calculate_sip
+from utils.sip import calculate_sip, calculate_goal_sip
 from utils.tax import calculate_tax
 from utils.pdf_parser import extract_income
 from utils.money_score import calculate_money_score
 from utils.multi_agent import run_multi_agent
 from utils.stock import get_stock_price
 from utils.expense_track import calculate_expense, insights
-from utils.validation import ValidationError, validate_string, validate_float, validate_int
+from utils.validation import ValidationError, validate_string, validate_float, validate_int, validate_history
 
 app = Flask(__name__)
 
 # ---------------- INIT DATABASE ----------------
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, FinancialGoal
+from models import (
+    db,
+    Expense,
+    Asset,
+    Liability,
+    BudgetLimit,
+    BudgetAlert,
+    PriceAlert,
+    FinancialGoal,
+    FinancialGoalMilestone,
+)
+
+
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///money_mentor.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -173,9 +185,7 @@ def chat():
         if not isinstance(data, dict):
             raise ValidationError("Request body must be a JSON object")
         msg = validate_string(data.get("message"), "message")
-        history = data.get("history", [])
-        if not isinstance(history, list):
-            raise ValidationError("'history' must be a list")
+        history = validate_history(data.get("history"))
 
         # Build messages: system prompt + last 10 history turns + current message
         system_prompt = (
@@ -240,6 +250,28 @@ def sip():
             "inflation_adjusted_value": result["inflation_adjusted_value"],
             "inflation_applied": result["inflation_applied"]
         })
+
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ---------------- 🎯 GOAL-BASED SAVINGS PLANNER ----------------
+@app.route("/goal-planner", methods=["GET", "POST"])
+def goal_planner():
+    if request.method == "GET":
+        return render_template("goal_planner.html", active_page="goal_planner")
+    try:
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+        goal = validate_float(data.get("goal"), "goal", min_val=0.01)
+        rate = validate_float(data.get("rate"), "rate", min_val=0.0)
+        years = validate_int(data.get("years"), "years", min_val=1)
+
+        result = calculate_goal_sip(goal, rate, years)
+        return jsonify(result)
 
     except ValidationError as e:
         raise e
@@ -361,6 +393,112 @@ def tax():
                 
         tax_details["ai_recommendations"] = recommendations
         return jsonify({"tax": tax_details})
+
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/tax/simulate", methods=["POST"])
+def tax_simulate():
+    try:
+        from utils.tax import simulate_tax_scenarios
+
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        income = validate_float(data.get("income"), "income", min_val=0.0)
+
+        scenario_a = data.get("scenario_a") or {}
+        scenario_b = data.get("scenario_b") or {}
+
+        if not isinstance(scenario_a, dict) or not isinstance(scenario_b, dict):
+            raise ValidationError("'scenario_a' and 'scenario_b' must be objects")
+
+        scenario_a_d80c = validate_float(scenario_a.get("deduction_80c", 0.0), "scenario_a.deduction_80c", min_val=0.0)
+        scenario_a_d80d = validate_float(scenario_a.get("deduction_80d", 0.0), "scenario_a.deduction_80d", min_val=0.0)
+        scenario_a_hra = validate_float(scenario_a.get("deduction_hra", 0.0), "scenario_a.deduction_hra", min_val=0.0)
+
+        scenario_b_d80c = validate_float(scenario_b.get("deduction_80c", 0.0), "scenario_b.deduction_80c", min_val=0.0)
+        scenario_b_d80d = validate_float(scenario_b.get("deduction_80d", 0.0), "scenario_b.deduction_80d", min_val=0.0)
+        scenario_b_hra = validate_float(scenario_b.get("deduction_hra", 0.0), "scenario_b.deduction_hra", min_val=0.0)
+
+        result = simulate_tax_scenarios(
+            income,
+            scenario_a={
+                "deduction_80c": scenario_a_d80c,
+                "deduction_80d": scenario_a_d80d,
+                "deduction_hra": scenario_a_hra,
+            },
+            scenario_b={
+                "deduction_80c": scenario_b_d80c,
+                "deduction_80d": scenario_b_d80d,
+                "deduction_hra": scenario_b_hra,
+            },
+        )
+
+        # Deterministic explanation always available
+        best_regime_a = result["best_regime"]["scenario_a"]
+        best_regime_b = result["best_regime"]["scenario_b"]
+        switch_savings_new = float(result["comparison"]["switch"]["new_regime"]["savings"])
+        switch_savings_old = float(result["comparison"]["switch"]["old_regime"]["savings"])
+
+        # pick regime under which switching A->B saves more (deterministic)
+        if switch_savings_new >= switch_savings_old and switch_savings_new > 0:
+            regime_for_explanation = "New Regime"
+        elif switch_savings_old > 0:
+            regime_for_explanation = "Old Regime"
+        else:
+            regime_for_explanation = result["comparison"]["best_scenario_by_savings_under_recommended_regime"]
+
+        # Build deterministic lever explanation from sensitivity rankings for the best regime of scenario B
+        scenario_b_best = best_regime_b
+        sens_for_scenario_b = result["sensitivity"]["scenario_b"]["new_regime"] if scenario_b_best == "New Regime" else result["sensitivity"]["scenario_b"]["old_regime"]
+        lever_ranking = result["sensitivity"]["scenario_b"]["new_regime"]["lever_ranking_for_best_regime"] if scenario_b_best == "New Regime" else result["sensitivity"]["scenario_b"]["old_regime"]["lever_ranking_for_best_regime"]
+
+        deterministic_explanation = (
+            f"Regime outcome: Scenario A is better under {best_regime_a}, while Scenario B is better under {best_regime_b}. "
+            f"Under {scenario_b_best}, the biggest tax lever tends to be: {lever_ranking[0]['lever']} "
+            f"(≈ {abs(lever_ranking[0]['delta_per_1']):.2f} tax change per ₹1). "
+        )
+
+        if client:
+            # AI explanation prompt (use computed deltas + savings)
+            prompt = (
+                f"User wants to compare tax scenarios in India.\n\n"
+                f"Income: ₹{result['income']:.0f}\n\n"
+                f"Scenario A recommended regime: {best_regime_a}\n"
+                f"Scenario B recommended regime: {best_regime_b}\n\n"
+                f"Switching A -> B savings:\n"
+                f"- New regime savings: ₹{switch_savings_new:.2f}\n"
+                f"- Old regime savings: ₹{switch_savings_old:.2f}\n\n"
+                f"Sensitivity (Scenario B, per ₹1 increase):\n"
+                f"{lever_ranking}\n\n"
+                f"Explain in simple terms why the winning regime is likely to be {best_regime_b} "
+                f"and which levers (80C/80D/HRA) give the biggest savings. "
+                f"Use bullet points and keep it under 8 lines."
+            )
+            try:
+                ai_res = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": "You are a professional Indian tax consultant. Provide concise, actionable insights."},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+                explanation = ai_res.choices[0].message.content.strip()
+            except Exception as ai_err:
+                app.logger.error(f"Tax simulate AI error: {str(ai_err)}")
+                explanation = deterministic_explanation
+        else:
+            explanation = deterministic_explanation
+
+        result["explanation"] = explanation
+        result["ai_available"] = client is not None
+
+        return jsonify({"result": result})
 
     except ValidationError as e:
         raise e
@@ -710,6 +848,85 @@ def delete_budget_limit(limit_id):
 
 
 # ---------------- FINANCIAL GOALS TRACKER ----------------
+def _months_diff(start_dt, end_dt):
+    return (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+
+
+def _ym_add_months(base_dt, months):
+    # base_dt is a datetime; normalize to first day
+    year = base_dt.year + (base_dt.month - 1 + months) // 12
+    month = (base_dt.month - 1 + months) % 12 + 1
+    return year, month
+
+
+def compute_monthly_milestones(goal):
+    """Compute milestones as an even split across months until goal.target_date.
+
+    Returns list of dicts: [{month, target_amount_for_month, status}]
+    """
+    from datetime import datetime
+
+    remaining = float(goal.target_amount) - float(goal.current_amount)
+    # If already reached/exceeded, all milestones become 0 and marked completed.
+    if remaining <= 0:
+        target_dt = datetime.strptime(goal.target_date, "%Y-%m")
+        now = datetime.now()
+        months_remaining = _months_diff(datetime(now.year, now.month, 1), datetime(target_dt.year, target_dt.month, 1))
+        if months_remaining < 0:
+            months_remaining = 0
+        if months_remaining == 0:
+            months_remaining = 1
+
+        milestones = []
+        for i in range(months_remaining):
+            y, m = _ym_add_months(datetime(now.year, now.month, 1), i)
+            milestones.append({
+                "month": f"{y:04d}-{m:02d}",
+                "target_amount_for_month": 0.0,
+                "status": "completed",
+            })
+        return milestones
+
+    target_dt = datetime.strptime(goal.target_date, "%Y-%m")
+    now = datetime.now()
+
+    start = datetime(now.year, now.month, 1)
+    end = datetime(target_dt.year, target_dt.month, 1)
+    months_remaining = _months_diff(start, end)
+    if months_remaining <= 0:
+        months_remaining = 1
+
+    # Even split with rounding correction on the last month.
+    base = remaining / months_remaining
+    amounts = [round(base, 2) for _ in range(months_remaining)]
+    total_alloc = round(sum(amounts), 2)
+    diff = round(remaining - total_alloc, 2)
+    amounts[-1] = round(amounts[-1] + diff, 2)
+
+    milestones = []
+    for i in range(months_remaining):
+        y, m = _ym_add_months(start, i)
+        milestones.append({
+            "month": f"{y:04d}-{m:02d}",
+            "target_amount_for_month": float(amounts[i]),
+            "status": "planned",
+        })
+
+    return milestones
+
+
+def persist_goal_milestones(goal, milestones):
+    FinancialGoalMilestone.query.filter_by(goal_id=goal.id).delete(synchronize_session=False)
+    for ms in milestones:
+        db.session.add(FinancialGoalMilestone(
+            goal_id=goal.id,
+            month=ms["month"],
+            target_amount_for_month=ms["target_amount_for_month"],
+            status=ms["status"],
+        ))
+    db.session.commit()
+
+
 @app.route("/goals", methods=["GET", "POST"])
 def goals():
     if request.method == "GET":
@@ -731,11 +948,16 @@ def goals():
         )
         db.session.add(goal)
         db.session.commit()
+
+        milestones = compute_monthly_milestones(goal)
+        persist_goal_milestones(goal, milestones)
+
         return jsonify({"status": "success", "goal": goal.to_dict()})
     except ValidationError as e:
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
 
 
 @app.route("/goals/<int:goal_id>", methods=["PUT", "DELETE"])
@@ -746,6 +968,8 @@ def goal_detail(goal_id):
             return jsonify({"error": "Goal not found"}), 404
 
         if request.method == "DELETE":
+            # Delete milestones first
+            FinancialGoalMilestone.query.filter_by(goal_id=goal.id).delete(synchronize_session=False)
             db.session.delete(goal)
             db.session.commit()
             return jsonify({"status": "success"})
@@ -762,11 +986,16 @@ def goal_detail(goal_id):
             if "target_date" in data:
                 goal.target_date = validate_string(data["target_date"], "target_date")
             db.session.commit()
+
+            milestones = compute_monthly_milestones(goal)
+            persist_goal_milestones(goal, milestones)
+
             return jsonify({"status": "success", "goal": goal.to_dict()})
     except ValidationError as e:
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
 
 
 @app.route("/api/goals", methods=["GET"])

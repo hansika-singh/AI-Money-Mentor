@@ -158,6 +158,9 @@ class FinancialGoal(db.Model):
     target_amount = db.Column(db.Float, nullable=False)
     current_amount = db.Column(db.Float, nullable=False, default=0.0)
     target_date = db.Column(db.String(10), nullable=False)  # YYYY-MM
+
+    # Optional AI-generated plan/tactics
+    ai_milestone_tactics = db.Column(db.Text, nullable=True)  # plain text, 3-5 bullet points
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
