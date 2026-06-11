@@ -26,15 +26,17 @@
     <!-- ASSETS -->
     <div class="card">
       <div class="card-title">Assets (What you own)</div>
-      <div class="chat-input-row" style="margin-bottom: 15px;">
-        <input type="text" id="assetName" placeholder="Asset name (e.g. HDFC Savings)">
-        <input type="number" required min="0" id="assetAmt" placeholder="Amount (₹)">
+      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px;">
+        <input type="text" id="assetName" placeholder="Asset name (e.g. HDFC Savings)" style="flex: 2;">
+        <input type="number" required min="0" id="assetAmt" placeholder="Amount (₹)" style="flex: 1.2;">
+        <input type="date" id="assetDate" required style="flex: 1.2; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
         <button class="btn btn-gold" onclick="addNWItem('asset')">Add</button>
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text);">
         <thead style="color: var(--muted); text-align: left; border-bottom: 1px solid var(--border);">
           <tr>
             <th style="padding: 8px;">Asset</th>
+            <th style="padding: 8px; text-align: center;">Date</th>
             <th style="padding: 8px; text-align: right;">Value</th>
             <th style="padding: 8px; text-align: center;">Action</th>
           </tr>
@@ -46,15 +48,17 @@
     <!-- LIABILITIES -->
     <div class="card">
       <div class="card-title">Liabilities (What you owe)</div>
-      <div class="chat-input-row" style="margin-bottom: 15px;">
-        <input type="text" id="liabName" placeholder="Liability name (e.g. Home Loan)">
-        <input type="number" required min="0" id="liabAmt" placeholder="Amount (₹)">
+      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px;">
+        <input type="text" id="liabName" placeholder="Liability name (e.g. Home Loan)" style="flex: 2;">
+        <input type="number" required min="0" id="liabAmt" placeholder="Amount (₹)" style="flex: 1.2;">
+        <input type="date" id="liabDate" required style="flex: 1.2; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
         <button class="btn btn-gold" onclick="addNWItem('liability')">Add</button>
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text);">
         <thead style="color: var(--muted); text-align: left; border-bottom: 1px solid var(--border);">
           <tr>
             <th style="padding: 8px;">Liability</th>
+            <th style="padding: 8px; text-align: center;">Date</th>
             <th style="padding: 8px; text-align: right;">Amount</th>
             <th style="padding: 8px; text-align: center;">Action</th>
           </tr>
@@ -79,12 +83,18 @@
       const assetList = document.getElementById('assetList');
       assetList.innerHTML = '';
       if (data.assets.length === 0) {
-        assetList.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--muted); font-style: italic;">No assets added yet</td></tr>';
+        assetList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--muted); font-style: italic;">No assets added yet</td></tr>';
       } else {
         data.assets.forEach((item, idx) => {
+          const formattedDate = item.date ? new Date(item.date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+          }) : 'N/A';
           assetList.innerHTML += `
             <tr style="border-bottom: 1px solid var(--border);">
               <td style="padding: 8px;">${item.name}</td>
+              <td style="padding: 8px; text-align: center; color: var(--muted);">${formattedDate}</td>
               <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
               <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('asset', ${item.id})">✖</button></td>
             </tr>
@@ -95,12 +105,18 @@
       const liabList = document.getElementById('liabList');
       liabList.innerHTML = '';
       if (data.liabilities.length === 0) {
-        liabList.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--muted); font-style: italic;">No liabilities added yet</td></tr>';
+        liabList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--muted); font-style: italic;">No liabilities added yet</td></tr>';
       } else {
         data.liabilities.forEach((item, idx) => {
+          const formattedDate = item.date ? new Date(item.date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+          }) : 'N/A';
           liabList.innerHTML += `
             <tr style="border-bottom: 1px solid var(--border);">
               <td style="padding: 8px;">${item.name}</td>
+              <td style="padding: 8px; text-align: center; color: var(--muted);">${formattedDate}</td>
               <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
               <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('liability', ${item.id})">✖</button></td>
             </tr>
@@ -115,14 +131,17 @@
   async function addNWItem(type) {
     const nameEl = document.getElementById(type === 'asset' ? 'assetName' : 'liabName');
     const amtEl  = document.getElementById(type === 'asset' ? 'assetAmt'  : 'liabAmt');
+    const dateEl = document.getElementById(type === 'asset' ? 'assetDate' : 'liabDate');
     const name   = nameEl.value.trim();
     const amount = parseFloat(amtEl.value);
-    if (!name || !amount || amount <= 0) { alert('Enter a valid name and amount.'); return; }
+    const date   = dateEl.value;
+    if (!name || !amount || amount <= 0 || !date) { alert('Enter a valid name, amount and date.'); return; }
     try {
       const url = type === 'asset' ? '/add-asset' : '/add-liability';
-      await apiFetch(url, { name, amount });
+      await apiFetch(url, { name, amount, date });
       nameEl.value = '';
       amtEl.value  = '';
+      dateEl.value = new Date().toISOString().split('T')[0];
       loadNetWorth();
     } catch (e) { alert('Could not save. Is Flask running?'); }
   }
@@ -135,6 +154,8 @@
   }
 
   window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('assetDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('liabDate').value = new Date().toISOString().split('T')[0];
     loadNetWorth();
   });
 </script>
