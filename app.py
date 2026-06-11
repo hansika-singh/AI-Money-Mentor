@@ -34,7 +34,7 @@ from utils.validation import ValidationError, validate_string, validate_float, v
 app = Flask(__name__)
 
 # ---------------- INIT DATABASE ----------------
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, FinancialGoal, RecurringExpense
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///money_mentor.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -279,19 +279,64 @@ def create_alert():
         data = request.json
         if not data or "symbol" not in data or "target_price" not in data:
             return jsonify({"error": "Missing required fields"}), 400
-        
+
         symbol = data["symbol"].strip().upper()
         target_price = float(data["target_price"])
         condition = data.get("condition", "above").strip().lower()
-        
+
         if condition not in ("above", "below"):
             return jsonify({"error": "Invalid condition value"}), 400
-            
+
         alert = PriceAlert(symbol=symbol, target_price=target_price, condition=condition)
         db.session.add(alert)
         db.session.commit()
         return jsonify(alert.to_dict()), 201
     except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/alerts/history", methods=["GET"])
+def alerts_history():
+    """
+    Returns latest N alert trigger events.
+    Query params:
+      - limit (default 10, max 100)
+    """
+    try:
+        limit = request.args.get("limit", default=10, type=int)
+        if limit < 1:
+            limit = 10
+        if limit > 100:
+            limit = 100
+
+        events = (
+            PriceAlertEvent.query.order_by(PriceAlertEvent.triggered_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return jsonify([e.to_dict() for e in events])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/alerts/reset", methods=["POST"])
+@app.route("/api/alerts//reset", methods=["POST"])  # handles legacy typo with double slash
+def alerts_reset():
+    try:
+        with app.app_context():
+            PriceAlert.query.update(
+                {
+                    "is_triggered": False,
+                    "last_triggered_at": None,
+                    "last_check_error": None,
+                }
+            )
+            # Clear history events
+            PriceAlertEvent.query.delete()
+            db.session.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        db.session.rollback()
         return jsonify({"error": str(e)}), 400
 
 @app.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
@@ -928,26 +973,73 @@ def check_all_budgets_job():
             run_threshold_checks(limit.category, ym)
 
 def check_stock_alerts_job():
+    """
+    Poll stock prices for active alerts and persist:
+    - last_check_error diagnostics on the PriceAlert row
+    - PriceAlertEvent row on trigger, storing snapshot price + timestamp
+    """
     with app.app_context():
         alerts = PriceAlert.query.filter_by(is_triggered=False).all()
+
+        # Basic retry/backoff for flaky yfinance / network issues
+        max_retries = 3
+        base_delay_sec = 1.0
+
         for alert in alerts:
-            res = get_stock_price(alert.symbol)
-            if res and "price" in res and "error" not in res:
+            last_err = None
+            res = None
+
+            for attempt in range(max_retries):
+                try:
+                    res = get_stock_price(alert.symbol)
+                    # get_stock_price returns {"error": "..."} on failure
+                    if res and isinstance(res, dict) and "price" in res and "error" not in res:
+                        last_err = None
+                        break
+                    if res and isinstance(res, dict) and "error" in res:
+                        last_err = res.get("error")
+                    else:
+                        last_err = "Unexpected response from get_stock_price"
+                except Exception as e:
+                    last_err = str(e)
+
+                # backoff before next attempt
+                time_to_sleep = base_delay_sec * (2 ** attempt)
+                import time as _time
+                _time.sleep(time_to_sleep)
+
+            # Persist diagnostics even if not triggered
+            alert.last_check_error = last_err
+
+            if res and isinstance(res, dict) and "price" in res and "error" not in res:
                 current_price = res["price"]
                 triggered = False
                 if alert.condition == "above" and current_price >= alert.target_price:
                     triggered = True
                 elif alert.condition == "below" and current_price <= alert.target_price:
                     triggered = True
-                
+
                 if triggered:
+                    from datetime import datetime as _dt
                     alert.is_triggered = True
+                    alert.last_triggered_at = _dt.utcnow()
+
+                    event = PriceAlertEvent(
+                        alert_id=alert.id,
+                        triggered_at=alert.last_triggered_at,
+                        price=current_price,
+                        condition=alert.condition,
+                        symbol=alert.symbol,
+                    )
+                    db.session.add(event)
+
                     print(
                         f"\n[STOCK ALERT] Triggered for {alert.symbol}\n"
                         f"Condition: {alert.condition} {alert.target_price}\n"
                         f"Current Price: {current_price}\n",
                         file=sys.stderr
                     )
+
         db.session.commit()
 
 

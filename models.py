@@ -53,14 +53,45 @@ class PriceAlert(db.Model):
     condition = db.Column(db.String(10), default="above")
     is_triggered = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
+    # Diagnostics + UI info
+    last_check_error = db.Column(db.String(500), nullable=True)
+    last_triggered_at = db.Column(db.DateTime, nullable=True)
+
     def to_dict(self):
         return {
             "id": self.id,
             "symbol": self.symbol,
             "target_price": self.target_price,
             "condition": self.condition,
-            "is_triggered": self.is_triggered
+            "is_triggered": self.is_triggered,
+            "last_check_error": self.last_check_error,
+            "last_triggered_at": self.last_triggered_at.isoformat() if self.last_triggered_at else None,
+        }
+
+
+class PriceAlertEvent(db.Model):
+    __tablename__ = "price_alert_events"
+    id = db.Column(db.Integer, primary_key=True)
+
+    alert_id = db.Column(db.Integer, nullable=False, index=True)
+    triggered_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    # Price snapshot at the moment of trigger
+    price = db.Column(db.Float, nullable=False)
+
+    # Store condition + symbol for easier querying/debugging
+    condition = db.Column(db.String(10), nullable=False)
+    symbol = db.Column(db.String(20), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "alert_id": self.alert_id,
+            "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
+            "price": self.price,
+            "condition": self.condition,
+            "symbol": self.symbol,
         }
 
 
