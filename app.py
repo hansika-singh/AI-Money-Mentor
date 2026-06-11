@@ -22,7 +22,7 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
 else:
     client = Groq(api_key=GROQ_API_KEY)
 # ---------------- IMPORT UTILS ----------------
-from utils.sip import calculate_sip
+from utils.sip import calculate_sip, calculate_goal_sip
 from utils.tax import calculate_tax
 from utils.pdf_parser import extract_income
 from utils.money_score import calculate_money_score
@@ -250,6 +250,28 @@ def sip():
             "inflation_adjusted_value": result["inflation_adjusted_value"],
             "inflation_applied": result["inflation_applied"]
         })
+
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ---------------- 🎯 GOAL-BASED SAVINGS PLANNER ----------------
+@app.route("/goal-planner", methods=["GET", "POST"])
+def goal_planner():
+    if request.method == "GET":
+        return render_template("goal_planner.html", active_page="goal_planner")
+    try:
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+        goal = validate_float(data.get("goal"), "goal", min_val=0.01)
+        rate = validate_float(data.get("rate"), "rate", min_val=0.0)
+        years = validate_int(data.get("years"), "years", min_val=1)
+
+        result = calculate_goal_sip(goal, rate, years)
+        return jsonify(result)
 
     except ValidationError as e:
         raise e

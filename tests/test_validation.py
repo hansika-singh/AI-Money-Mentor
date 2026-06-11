@@ -172,6 +172,53 @@ class TestEndpointValidation(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 400)
 
+    def test_goal_planner_endpoint(self):
+        # Valid payload
+        response = self.app.post('/goal-planner', json={
+            "goal": 1000000,
+            "rate": 12,
+            "years": 3
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn("monthly_sip", data)
+        self.assertIn("total_invested", data)
+        self.assertIn("returns", data)
+
+        # Zero rate should fall back to a simple division
+        response = self.app.post('/goal-planner', json={
+            "goal": 120000,
+            "rate": 0,
+            "years": 1
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["monthly_sip"], 10000.0)
+
+        # Missing goal
+        response = self.app.post('/goal-planner', json={
+            "rate": 12,
+            "years": 3
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("goal", response.get_json()["message"])
+
+        # Zero/negative goal
+        response = self.app.post('/goal-planner', json={
+            "goal": 0,
+            "rate": 12,
+            "years": 3
+        })
+        self.assertEqual(response.status_code, 400)
+
+        # Zero/negative years
+        response = self.app.post('/goal-planner', json={
+            "goal": 1000000,
+            "rate": 12,
+            "years": 0
+        })
+        self.assertEqual(response.status_code, 400)
+
     def test_tax_endpoint(self):
         # Valid payload
         response = self.app.post('/tax', json={
