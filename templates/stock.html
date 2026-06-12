@@ -50,9 +50,22 @@
     </div>
 
     <div class="card" style="min-height: 250px;">
-      <div class="card-title">Active & Triggered Alerts</div>
-      <div id="alertsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div class="card-title" style="margin:0;">Active & Triggered Alerts</div>
+        <button class="btn btn-ghost" style="font-size:12px; padding:6px 10px; height:auto;" onclick="resetAlertHistory()" title="Reset all alert triggered states and clear history">
+          Reset History
+        </button>
+      </div>
+
+      <div id="alertsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 180px; overflow-y: auto; margin-top: 10px;">
         <p style="color: var(--muted); font-size: 13px;">No price alerts set yet.</p>
+      </div>
+
+      <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px;">
+        <div class="card-title" style="margin-bottom: 10px;">Past Trigger Events</div>
+        <div id="eventsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 140px; overflow-y: auto;">
+          <p style="color: var(--muted); font-size: 13px;">No trigger events yet.</p>
+        </div>
       </div>
     </div>
   </div>

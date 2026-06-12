@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Goal Planner{% endblock %}
+
+{% block content %}
+<div id="goal_planner" class="page active">
+  <div class="page-title">🎯 Goal-Based <span>Savings Planner</span></div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
+    <div class="card">
+      <div class="card-title">Reverse SIP Calculator</div>
+
+      <label>Goal Name</label>
+      <input type="text" id="goal_name" placeholder="e.g. Dream Home, Car, Vacation">
+
+      <label>Goal Amount (₹)</label>
+      <input type="number" required min="0" id="goal_amount" placeholder="e.g. 1000000">
+
+      <label>Time to Achieve Goal (Years)</label>
+      <input type="number" required min="1" id="goal_years" placeholder="e.g. 3">
+
+      <label>Expected Annual Return (%)</label>
+      <input type="number" required min="0" id="goal_rate" placeholder="e.g. 12">
+
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-gold" style="flex:1" onclick="calcGoalPlanner()" id="goalBtn">Calculate</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="resetGoalPlanner()" id="goalResetBtn">Reset</button>
+      </div>
+
+      <div id="goalResult" class="result-box"></div>
+    </div>
+
+    <div class="card" style="min-height: 380px;">
+      <div class="card-title">Investment Breakdown</div>
+      <div style="position: relative; height: 320px;">
+        <canvas id="goalChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let goalChartInstance = null;
+
+  async function calcGoalPlanner() {
+    const name = document.getElementById('goal_name').value.trim();
+    const goal = document.getElementById('goal_amount').value;
+    const years = document.getElementById('goal_years').value;
+    const rate = document.getElementById('goal_rate').value;
+
+    if (!goal || !years || !rate) {
+      showResult('goalResult', '⚠ Please fill all fields.');
+      return;
+    }
+
+    setLoading('goalBtn', true);
+    try {
+      const data = await apiFetch('/goal-planner', {
+        goal: parseFloat(goal),
+        years: parseInt(years),
+        rate: parseFloat(rate)
+      });
+
+      if (data.error) {
+        showResult('goalResult', `⚠ ${data.error}`);
+      } else {
+        const title = name ? `Plan for "${name}"` : 'Your Plan';
+        showResult('goalResult', `
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">${title} — Monthly SIP Required</div>
+          <div class="result-big">₹${fmtNum(data.monthly_sip)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">
+            Total Invested: ₹${fmtNum(data.total_invested)} &nbsp;·&nbsp;
+            Wealth Gained: ₹${fmtNum(data.returns)}
+          </div>
+        `);
+
+        if (goalChartInstance) goalChartInstance.destroy();
+        const ctx = document.getElementById('goalChart').getContext('2d');
+        goalChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Total Invested', 'Wealth Gained (Returns)'],
+            datasets: [{
+              data: [data.total_invested, Math.max(data.returns, 0)],
+              backgroundColor: ['#5a6a82', '#2ecc8a'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#eef0f5', font: { family: 'Instrument Sans' } } }
+            },
+            cutout: '70%'
+          }
+        });
+      }
+    } catch (e) {
+      showResult('goalResult', '⚠ Could not reach server.');
+    }
+    setLoading('goalBtn', false);
+  }
+
+  function resetGoalPlanner() {
+    document.getElementById('goal_name').value = '';
+    document.getElementById('goal_amount').value = '';
+    document.getElementById('goal_years').value = '';
+    document.getElementById('goal_rate').value = '';
+    const res = document.getElementById('goalResult');
+    res.innerHTML = '';
+    res.classList.remove('visible');
+    if (goalChartInstance) {
+      goalChartInstance.destroy();
+      goalChartInstance = null;
+    }
+  }
+</script>
+{% endblock %}

@@ -109,16 +109,21 @@
         `);
 
         // Compute sub-scores locally for visual rendering
-        const savingsRateVal = parseFloat(savings) / parseFloat(income);
+        const savingsRateVal = income>0? parseFloat(savings) / parseFloat(income):0;
         const savingsScore = savingsRateVal >= 0.3 ? 30 : savingsRateVal >= 0.2 ? 20 : 10;
 
-        const investRateVal = parseFloat(invest) / parseFloat(income);
+        const investRateVal = income>0? parseFloat(invest) / parseFloat(income):0;
         const investScore = investRateVal >= 0.2 ? 25 : investRateVal >= 0.1 ? 15 : 5;
 
-        const debtRatioVal = parseFloat(debt) / parseFloat(income);
-        const debtScore = debtRatioVal <= 0.2 ? 25 : debtRatioVal <= 0.4 ? 15 : 5;
+        const debtRatioVal = income>0? parseFloat(debt) / parseFloat(income):0;
+        let debtScore=25;
+        if (income>0){
+          debtScore = debtRatioVal <= 0.2 ? 25:debtRatioVal<=0.4?15 : 5;
+        }else if(income==0 && debt==0){
+          debtScore=25;
+        }
 
-        const monthsCoverVal = parseFloat(emergency) / parseFloat(expenses);
+        const monthsCoverVal = expenses>0? parseFloat(emergency) / parseFloat(expenses):0;
         const emergencyScore = monthsCoverVal >= 6 ? 20 : monthsCoverVal >= 3 ? 10 : 5;
 
         // Draw Horizontal Bar Chart

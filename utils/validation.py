@@ -35,6 +35,29 @@ def validate_float(val, field_name="value", min_val=0.0, max_val=None, allow_non
         
     return float_val
 
+def validate_history(history, field_name="history"):
+    """Validate and sanitize a chat conversation history list.
+
+    Returns an empty list if history is missing/None. Raises if history is
+    present but not a list. Silently drops any entries that aren't
+    well-formed {"role": "user"|"assistant", "content": <str>} messages so
+    malformed client input can't break the downstream chat request.
+    """
+    if history is None:
+        return []
+    if not isinstance(history, list):
+        raise ValidationError(f"'{field_name}' must be a list")
+
+    sanitized = []
+    for entry in history:
+        if (
+            isinstance(entry, dict)
+            and entry.get("role") in ("user", "assistant")
+            and isinstance(entry.get("content"), str)
+        ):
+            sanitized.append({"role": entry["role"], "content": entry["content"]})
+    return sanitized
+
 def validate_int(val, field_name="value", min_val=0, max_val=None, allow_none=False):
     if val is None:
         if allow_none:

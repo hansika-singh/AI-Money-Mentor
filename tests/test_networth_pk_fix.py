@@ -17,6 +17,7 @@ import pytest
 # does not require groq, yfinance, or any other optional dependency.
 
 from flask import Flask, request, jsonify
+from datetime import datetime
 from models import db, Asset, Liability
 
 def create_test_app():
@@ -42,7 +43,8 @@ def create_test_app():
     @app.route("/add-asset", methods=["POST"])
     def add_asset():
         data = request.json
-        a = Asset(name=data["name"], amount=float(data["amount"]))
+        date_val = data.get("date") or datetime.utcnow().strftime("%Y-%m-%d")
+        a = Asset(name=data["name"], amount=float(data["amount"]), date=date_val)
         db.session.add(a)
         db.session.commit()
         return jsonify({"status": "success"})
@@ -50,7 +52,8 @@ def create_test_app():
     @app.route("/add-liability", methods=["POST"])
     def add_liability():
         data = request.json
-        l = Liability(name=data["name"], amount=float(data["amount"]))
+        date_val = data.get("date") or datetime.utcnow().strftime("%Y-%m-%d")
+        l = Liability(name=data["name"], amount=float(data["amount"]), date=date_val)
         db.session.add(l)
         db.session.commit()
         return jsonify({"status": "success"})
