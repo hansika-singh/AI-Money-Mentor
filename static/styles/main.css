@@ -712,6 +712,9 @@
     input[type="text"],
     input[type="number"],
     input[type="file"],
+    input[type="month"],
+    input[type="date"],
+    select,
     textarea {
       width: 100%;
       padding: 12px 16px;
@@ -722,14 +725,45 @@
       font-family: inherit;
       font-size: 13px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      box-shadow: none;
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 12px;
     }
 
     input:focus,
+    select:focus,
     textarea:focus {
       border-color: rgba(212, 168, 67, 0.5);
       background: rgba(17, 26, 46, 0.95);
       box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.1);
+    }
+
+    select:hover {
+      border-color: rgba(212, 168, 67, 0.25);
+    }
+
+    select {
+      padding-right: 38px;
+      background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+      background-position: calc(100% - 14px) center, calc(100% - 10px) center;
+      background-size: 6px 6px;
+      background-repeat: no-repeat;
+    }
+
+    input[type="month"]::-webkit-calendar-picker-indicator,
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(100%) opacity(0.7);
+    }
+
+    select::-ms-expand {
+      display: none;
     }
 
     input[type="range"] {
