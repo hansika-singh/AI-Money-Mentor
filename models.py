@@ -193,7 +193,7 @@ class BudgetLimit(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     user = db.relationship("User", backref="budget_limits")
     id = db.Column(db.Integer, primary_key=True)
-    category = db.Column(db.String(120), unique=True, nullable=False)
+    category = db.Column(db.String(120), nullable=False)
     limit_amount = db.Column(db.Float, nullable=False)
 
     def to_dict(self):
@@ -253,6 +253,23 @@ class FinancialGoal(db.Model):
             "user_id": self.user_id
         }
 
+class FinancialGoalMilestone(db.Model):
+    __tablename__ = "financial_goal_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("financial_goals.id"), nullable=False, index=True)
+    month = db.Column(db.String(7), nullable=False)  # YYYY-MM
+    target_amount_for_month = db.Column(db.Float, nullable=False, default=0.0)
+    status = db.Column(db.String(20), nullable=False, default="planned")  # planned|completed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "goal_id": self.goal_id,
+            "month": self.month,
+            "target_amount_for_month": self.target_amount_for_month,
+            "status": self.status,
+        }
 
 class RecurringExpense(db.Model):
     __tablename__ = "recurring_expenses"

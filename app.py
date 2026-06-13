@@ -49,7 +49,7 @@ app = Flask(__name__)
 
 
 # ---------------- INIT DATABASE ----------------
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, FinancialGoalMilestone
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///money_mentor.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -390,6 +390,7 @@ def create_alert():
 
 
 @app.route("/api/alerts/history", methods=["GET"])
+@login_required
 def alerts_history():
     """
     Returns latest N alert trigger events.
@@ -397,6 +398,7 @@ def alerts_history():
       - limit (default 10, max 100)
     """
     try:
+        user_alert_ids = [a.id for a in PriceAlert.query.filter_by(user_id=current_user.id).all()]
         limit = request.args.get("limit", default=10, type=int)
         if limit < 1:
             limit = 10
@@ -404,34 +406,50 @@ def alerts_history():
             limit = 100
 
         events = (
-            PriceAlertEvent.query.order_by(PriceAlertEvent.triggered_at.desc())
-            .limit(limit)
-            .all()
+        PriceAlertEvent.query
+        .filter(PriceAlertEvent.alert_id.in_(user_alert_ids))
+        .order_by(PriceAlertEvent.triggered_at.desc())
+        .limit(limit)
+        .all()
         )
+
         return jsonify([e.to_dict() for e in events])
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/alerts/reset", methods=["POST"])
-@app.route("/api/alerts//reset", methods=["POST"])  # handles legacy typo with double slash
+@login_required
 def alerts_reset():
     try:
-        with app.app_context():
-            PriceAlert.query.update(
-                {
-                    "is_triggered": False,
-                    "last_triggered_at": None,
-                    "last_check_error": None,
-                }
-            )
-            # Clear history events
-            PriceAlertEvent.query.delete()
-            db.session.commit()
+        PriceAlert.query.filter_by(
+            user_id=current_user.id
+        ).update(
+            {
+                "is_triggered": False,
+                "last_triggered_at": None,
+                "last_check_error": None,
+            }
+        )
+
+        user_alert_ids = [
+            a.id for a in PriceAlert.query.filter_by(
+                user_id=current_user.id
+            ).all()
+        ]
+
+        if user_alert_ids:
+            PriceAlertEvent.query.filter(
+                PriceAlertEvent.alert_id.in_(user_alert_ids)
+            ).delete(synchronize_session=False)
+
+        db.session.commit()
+
         return jsonify({"status": "success"})
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
+    
 
 @app.route("/api/alerts/<int:alert_id>", methods=["DELETE"])
 @login_required
@@ -724,9 +742,10 @@ def add_expense():
         return jsonify({"error": str(e)}), 400
 
 @app.route("/expense/<int:expense_id>", methods=["PUT", "DELETE"])
+@login_required
 def expense_detail(expense_id):
     try:
-        expense = Expense.query.get(expense_id)
+        expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first()
         if not expense:
             return jsonify({"error": f"Expense with id {expense_id} not found."}), 404
 
@@ -812,6 +831,7 @@ def _get_period_key(frequency: str, d):
 
 
 @app.route("/recurring-expense", methods=["POST"])
+@login_required
 def create_recurring_expense():
     """
     Create a recurring expense template.
@@ -868,6 +888,7 @@ def create_recurring_expense():
 
 
 @app.route("/recurring-expense", methods=["GET"])
+@login_required
 def list_recurring_expenses():
     try:
         items = RecurringExpense.query.order_by(RecurringExpense.id.desc()).all()
@@ -877,6 +898,7 @@ def list_recurring_expenses():
 
 
 @app.route("/recurring-expense/<int:recurring_id>", methods=["DELETE"])
+@login_required
 def disable_recurring_expense(recurring_id):
     """
     Disable a recurring expense template.
@@ -899,8 +921,8 @@ def disable_recurring_expense(recurring_id):
 def get_net_worth():
     assets = Asset.query.filter_by(user_id=current_user.id).order_by(Asset.id).all()
     liabilities = Liability.query.filter_by(user_id=current_user.id).order_by(Liability.id).all()
-    assets_data = [a.to_dict(i) for i, a in enumerate(assets)]
-    liabilities_data = [l.to_dict(i) for i, l in enumerate(liabilities)]
+    assets_data = [a.to_dict() for i, a in enumerate(assets)]
+    liabilities_data = [l.to_dict() for i, l in enumerate(liabilities)]
     total_assets = sum(item['amount'] for item in assets_data)
     total_liabilities = sum(item['amount'] for item in liabilities_data)
     return jsonify({
@@ -965,7 +987,7 @@ def add_liability():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route("/delete-item", methods=["POST"])
+@app.route("/delete-item", methods=["DELETE"])
 @login_required
 def delete_item():
     try:
@@ -978,9 +1000,9 @@ def delete_item():
         item_db_id = validate_int(data.get("id"), "id", min_val=1)
 
         if item_type == "asset":
-            item = Asset.query.get(item_db_id)
+            item = Asset.query.filter_by(id=item_db_id, user_id=current_user.id).first()
         else:
-            item = Liability.query.get(item_db_id)
+            item = Liability.query.filter_by(id=item_db_id, user_id=current_user.id).first()
 
         if not item:
             return jsonify({"error": f"Item not found (type={item_type}, id={item_db_id})"}), 404
@@ -1004,6 +1026,7 @@ def run_threshold_checks(category, year_month=None):
         return []
         
     expenses = Expense.query.filter(
+        Expense.user_id == current_user.id,
         Expense.category == category,
         Expense.date.like(f"{year_month}%")
     ).all()
@@ -1076,7 +1099,7 @@ def budget_status():
     limits = BudgetLimit.query.filter_by(user_id=current_user.id).all()
     limits_dict = {l.category: l.limit_amount for l in limits}
     
-    expenses = Expense.query.filter(Expense.date.like(f"{year_month}%")).all()
+    expenses = Expense.query.filter(Expense.user_id == current_user.id, Expense.date.like(f"{year_month}%")).all()
     
     spent_by_category = {}
     for e in expenses:
@@ -1116,7 +1139,7 @@ def budget_alerts():
 def delete_budget_limit(limit_id):
     """Remove a category budget limit and its associated alerts."""
     try:
-        limit = db.session.get(BudgetLimit, limit_id)
+        limit = BudgetLimit.query.filter_by(id=limit_id, user_id=current_user.id).first()
         if not limit:
             return jsonify({"error": f"Budget limit with id {limit_id} not found."}), 404
         # Remove any alerts tied to this category before deleting the limit
