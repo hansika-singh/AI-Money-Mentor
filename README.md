@@ -107,8 +107,11 @@ python -m venv venv
 source venv/bin/activate          # Linux/macOS
 # venv\Scripts\activate           # Windows
 
-# Install dependencies
+# Install production dependencies
 pip install -r requirements.txt
+
+# Install development dependencies (for contributors / running tests)
+pip install -r requirements.txt -r requirements-dev.txt
 
 # Configure environment
 cp .env.example .env
@@ -122,6 +125,8 @@ python app.py
 ---
 
 ## 🧪 Testing
+
+> Make sure you've installed dev dependencies: `pip install -r requirements.txt -r requirements-dev.txt`
 
 ```bash
 pytest                        # Full suite
