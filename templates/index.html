@@ -8,6 +8,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap"
     rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles/light-mode.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles/style1.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -27,33 +29,42 @@
     }
 
     body.light-theme {
-      --bg: #f4f6f9;
-      --bg2: #ffffff;
+      --bg : beige;
+      --bg2: aliceblue;
       --bg3: #e8edf3;
-
-      --text: #1f2937;
+      --text: #20406d;
       --muted: #6b7280;
-
       --border: rgba(0, 0, 0, 0.08);
 
-      --gold: #d4a843;
-      --gold2: #f0cc6e;
-
-      --teal: #14c8bf;
-      --red: #e05252;
-      --green: #2ecc8a;
+      .card{
+        background:ivory;
+      }
+      .stat-card{
+        background: ivory;
+      }
+      .sidebar{
+        background:beige;
+      }
+      .chat-textarea {
+        background:rgb(245, 245, 210);
+      }
+      .msg.bot {
+        background:rgb(245, 245, 210);
+      }
+      input,
+      select {
+        background: rgb(244,244,208);
+      }
     }
 
-    *,
-    *::before,
-    *::after {
+    * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
 
     body {
-      font-family: 'Instrument Sans', sans-serif;
+      font-family: 'Instrument Sans', sans-serif;  /* change */
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -107,6 +118,12 @@
       position: sticky;
       top: 0;
       box-shadow: 2px 0 30px rgba(0, 0, 0, 0.18);
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+
+    .sidebar::-webkit-scrollbar {
+      display: none;             /* Chrome, Safari, Opera */
     }
 
     .logo {
@@ -125,11 +142,11 @@
       align-items: center;
       gap: 10px;
       padding: 10px 12px;
+      min-height: 44px;
       border-radius: 8px;
       cursor: pointer;
       color: var(--muted);
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 18px;
       transition: all 0.18s ease;
       user-select: none;
       font-family: 'JetBrains Mono', monospace;
@@ -146,9 +163,8 @@
     }
 
     .nav-item .icon {
-      font-size: 15px;
-      width: 20px;
-      text-align: center;
+      font-size: 20px;
+      width: 24px;
     }
 
     /* ── MAIN ─────────────────────────────────────── */
@@ -307,7 +323,7 @@
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: var(--muted); 
       margin-bottom: 16px;
     }
 
@@ -319,8 +335,8 @@
     }
 
     .stat-card {
-      background: rgba(15, 22, 38, 0.96);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 22, 38, 0.96); 
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 20px;
       position: relative;
@@ -335,7 +351,8 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, rgba(212, 168, 67, 0.9), rgba(20, 200, 191, 0.9));
+      background: linear-gradient(90deg, var(--gold), var(--teal)); 
+      
     }
 
     .stat-label {
@@ -347,15 +364,68 @@
     }
 
     .stat-val {
-      font-family: 'Syne', sans-serif;
-      font-size: 26px;
+      font-family:'Times New Roman', Times, serif;
+      font-size: 24px;
       font-weight: 800;
       margin: 6px 0 4px;
     }
 
     .stat-sub {
       font-size: 11px;
-      color: var(--green);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .holdings-table th:first-child {
+      text-align: left;
+    }
+
+    .holdings-table td {
+      padding: 12px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .holdings-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+    }
+
+    /* Forms */
+    input,
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(17, 26, 46, 0.9); 
+      
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--gold);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-family: 'Instrument Sans', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      transition: all 0.18s ease;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #f3d687 0%, #d4a843 60%);
+      color: #0a0e18;
     }
 
     .stat-sub.neg {
@@ -412,7 +482,8 @@
 
     .msg.bot {
       background: rgba(16, 24, 41, 0.94);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      
+      border: 1px solid var(--border);
       align-self: flex-start;
     }
 
@@ -439,6 +510,12 @@
       flex-shrink: 0;
       min-width: 50px;
       padding: 12px 16px;
+      background: rgba(17, 26, 46, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
     }
 
     .chat-welcome {
@@ -499,6 +576,16 @@
       text-align: center;
       font-weight: 500;
     }
+
+
+  </style>
+</head>
+
+<body>
+
+  <div class="sidebar">
+    <div class="logo">₹ Money Mentor</div>
+    <button class="btn btn-ghost theme-toggle-btn" onclick="toggleTheme()" style="margin-bottom: 15px;">☀️ Light Mode</button>
 
     .chat-feature-item:hover {
       background: rgba(255, 255, 255, 0.08);
@@ -1053,6 +1140,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
       outline: none;
       transition: opacity 0.2s;
     }
@@ -1104,23 +1193,67 @@
         display: flex;
       }
 
-      .sidebar {
-        position: fixed;
-        left: -220px;
-        top: 0;
-        bottom: 0;
-        z-index: 1000;
-        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        min-height: 100vh;
+      .mobile-header .menu-toggle-btn {
+        display: none !important;
       }
 
-      .sidebar.open {
+      .sidebar {
+        position: fixed;
+        bottom: 0;
         left: 0;
-        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6);
+        top: auto;
+        width: 100%;
+        height: 70px;
+        min-height: 70px;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 10px;
+        z-index: 1000;
+        background: #0a0f1c; /* solid dark background */
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        align-items: center;
+        gap: 0;
+        opacity: 1;
+        transition: none;
+      }
+
+      .sidebar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .nav-section-title {
+        display: none !important;
+      }
+
+      .sidebar .theme-toggle-btn {
+        display: none !important;
+      }
+
+      .sidebar .logo {
+        display: none !important;
+      }
+
+      .nav-item {
+        flex-direction: column;
+        padding: 5px 10px;
+        min-width: 75px;
+        font-size: 10px;
+        gap: 4px;
+        justify-content: center;
+        border-radius: 0;
+        white-space: nowrap;
+        margin-bottom: 0;
+        border-bottom: none;
+      }
+
+      .nav-item .icon {
+        font-size: 20px;
+        width: auto;
       }
 
       .main {
-        padding: 20px 16px;
+        padding: 20px 16px 90px 16px !important;
       }
 
       .dash-grid {
@@ -1181,58 +1314,7 @@
       }
     }
 
-    body.light-theme .sidebar {
-      background: #ffffff;
-      border-right: 1px solid rgba(0, 0, 0, 0.08);
-    }
-
-    body.light-theme .card {
-      background: #ffffff;
-      color: var(--text);
-    }
-
-    body.light-theme .stat-card {
-      background: #ffffff;
-    }
-
-    body.light-theme .chat-messages {
-      background: #f9fafb;
-    }
-
-    body.light-theme .msg.bot {
-      background: #ffffff;
-    }
-
-    body.light-theme input,
-    body.light-theme textarea,
-    body.light-theme select {
-      background: #ffffff;
-      color: #111827;
-      border: 1px solid #d1d5db;
-    }
-
-    body.light-theme {
-      background: #f4f6f9;
-    }
-
-    body.light-theme::before {
-      background:
-        radial-gradient(circle at 16% 16%, rgba(20, 200, 191, 0.08), transparent 18%),
-        radial-gradient(circle at 88% 12%, rgba(212, 168, 67, 0.08), transparent 14%);
-    }
-
-
-  .page-title {
-    font-size: 18px;
-  }
-
-/* ===== GOAL TRACKER STYLING FIX ===== */
-
-    .page-title {
-      font-size: 18px;
-    }
     
-
 
     /* ===== GOAL TRACKER STYLING FIX ===== */
 
@@ -1455,24 +1537,33 @@
   </style>
 </head>
 
-<body>
+<script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/script1.js') }}"></script>
+</body>
 
   <!-- Menu Overlay for Mobile Drawer -->
   <div class="menu-overlay"></div>
 
   <!-- Mobile Top Navigation Header -->
-  <div class="mobile-header">
-    <button class="menu-toggle-btn" onclick="toggleMobileMenu()">☰</button>
+  <div class="mobile-header" style="justify-content: space-between;">
     <div class="mobile-logo">₹ Money Mentor</div>
+    <button class="theme-toggle-btn theme-toggle-mobile" onclick="toggleTheme()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 48px; height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text); cursor: pointer; padding: 0;">
+      <span class="icon" style="font-size: 16px; line-height: 1;">☀️</span>
+      <span class="text" style="font-size: 9px; margin-top: 2px;">Light Mode</span>
+    </button>
   </div>
 
   <!-- ══════════ SIDEBAR ══════════ -->
   <div class="sidebar">
     <div class="logo">₹ Money Mentor</div>
+
     <div class="nav-item" data-page="retirement">
     <span class="icon">📈</span> Retirement Simulator
 </div>
     <button class="btn btn-ghost" id="themeToggle" onclick="toggleTheme()" style="margin-bottom:15px;width:100%;">
+
+    <button class="btn btn-ghost theme-toggle-btn" onclick="toggleTheme()" style="margin-bottom:15px;width:100%;">
+
       ☀️ Light Mode
     </button>
 
@@ -1959,14 +2050,7 @@
       </div>
     </div>
 
-    <canvas id="expenseChart"></canvas>
-
-  </div>
-
-  </div><!-- /main -->
-
-  <!-- Loading charts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+   
 
   <!-- Scroll to Top Button -->
   <button id="scrollTopBtn" onclick="document.querySelector('.main').scrollTo({top: 0, behavior: 'smooth'})"
@@ -1976,7 +2060,7 @@
   </div><!-- /main -->
 
   <!-- Loading charts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 
   <script>
     // Scroll to Top visibility toggle
@@ -2029,10 +2113,8 @@
     /* ── NAVIGATION ──────────────────────────────── */
     function toggleMobileMenu() {
       const sidebar = document.querySelector('.sidebar');
-      const overlay = document.querySelector('.menu-overlay');
-      if (sidebar && overlay) {
+      if (sidebar) {
         sidebar.classList.toggle('open');
-        overlay.classList.toggle('active');
       }
     }
 
@@ -2047,10 +2129,8 @@
 
       // Automatically close drawer menu on mobile
       const sidebar = document.querySelector('.sidebar');
-      const overlay = document.querySelector('.menu-overlay');
       if (sidebar && sidebar.classList.contains('open')) {
         sidebar.classList.remove('open');
-        overlay.classList.remove('active');
       }
     }
 
@@ -2062,15 +2142,7 @@
       });
     });
 
-    // Mobile overlay dismiss
-    const overlay = document.querySelector('.menu-overlay');
-    if (overlay) {
-      overlay.addEventListener('click', () => {
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) sidebar.classList.remove('open');
-        overlay.classList.remove('active');
-      });
-    }
+
 
     /* ══════════════════════════════════════════════
        HELPERS
@@ -2963,20 +3035,6 @@
                   <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('liability', ${idx})">✖</button></td>
                 </tr>
               `;
-
-                            });
-                          }
-                             } catch(error){
-            console.log(error);
-        }
-}
-
-loadExpenses();
-
-let goals = [];
-                          
-
-
           });
         }
       } catch (e) {
@@ -2990,7 +3048,6 @@ let goals = [];
       _origShowPage(name, e);
       if (name === 'networth') loadNetWorth();
     };
-
 
     /* ══════════════════════════════════════════════
        GOAL TRACKER (global scope)
@@ -3145,27 +3202,49 @@ Add Savings
 
 </div>
 `;
-
-});
-}
-
           });
         }
 
-
-    /* ══════════════════════════════════════════════
-       THEME TOGGLE (global scope)
+  /* ══════════════════════════════════════════════
+       CHART THEME HELPER — updates Chart.js defaults for light/dark
     ══════════════════════════════════════════════ */
+    function applyChartTheme(isLight) {
+      const textColor  = isLight ? '#1a2235' : '#eef0f5';
+      const mutedColor = isLight ? '#6b7a92' : '#5a6a82';
+      const gridColor  = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)';
+
+      Chart.defaults.color = mutedColor;
+      Chart.defaults.borderColor = gridColor;
+
+      [sipChartInstance, stockChartInstance, scoreChartInstance, portfolioChartInstance].forEach(chart => {
+        if (!chart) return;
+        try {
+          if (chart.options.scales) {
+            Object.values(chart.options.scales).forEach(scale => {
+              if (scale.ticks) scale.ticks.color = mutedColor;
+              if (scale.grid)  scale.grid.color  = gridColor;
+            });
+          }
+          if (chart.options.plugins?.legend?.labels) {
+            chart.options.plugins.legend.labels.color = textColor;
+          }
+          chart.update();
+        } catch(e) { /* chart may not have scales */ }
+      });
+    }
+
     function toggleTheme() {
       document.body.classList.toggle("light-theme");
+      const isLight = document.body.classList.contains("light-theme");
       const btn = document.getElementById("themeToggle");
-      if (document.body.classList.contains("light-theme")) {
+      if (isLight) {
         localStorage.setItem("theme", "light");
         btn.innerHTML = "🌙 Dark Mode";
       } else {
         localStorage.setItem("theme", "dark");
         btn.innerHTML = "☀️ Light Mode";
       }
+      applyChartTheme(isLight);
     }
 
     // Restore saved theme on load (script is at bottom, DOM is ready)
@@ -3175,84 +3254,10 @@ Add Savings
       if (savedTheme === "light") {
         document.body.classList.add("light-theme");
         if (btn) btn.innerHTML = "🌙 Dark Mode";
+        window.addEventListener("load", () => applyChartTheme(true));
       }
     })();
-
-
-                   </script>
-
- <script>
-
-async function chatSend() {
-
-    const input = document.getElementById("chatInput");
-    const messages = document.getElementById("chatMessages");
-    const welcome = document.getElementById("chatPageWelcome");
-
-    const text = input.value.trim();
-
-    if (!text) return;
-
-    welcome?.classList.add("hidden");
-
-    messages.innerHTML += `
-        <div class="msg user">
-            <div class="sender">YOU</div>
-            ${text}
-        </div>
-    `;
-
-    input.value = "";
-
-    try {
-
-        const res = await fetch("http://127.0.0.1:5000/chat", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                message: text
-            })
-        });
-
-        const data = await res.json();
-
-        messages.innerHTML += `
-            <div class="msg bot">
-                <div class="sender">AI</div>
-                ${data.reply}
-            </div>
-        `;
-
-    } catch (err) {
-
-        messages.innerHTML += `
-            <div class="msg bot">
-                <div class="sender">AI</div>
-                Backend not connected. /chat endpoint missing.
-            </div>
-        `;
-
-        console.log(err);
-    }
-
-    messages.scrollTop = messages.scrollHeight;
-}
-
-function chatQuick(text){
-
-    document.getElementById(
-        "chatInput"
-    ).value = text;
-
-    chatSend();
-}
-
-</script>
-
   </script>
-
 </body>
 
 </html>
