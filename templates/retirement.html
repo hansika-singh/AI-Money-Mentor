@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Retirement & Inflation Simulator - AI Money Mentor{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+        <div>
+            <h1 class="display-5 fw-bold gradient-text">📈 Retirement & Inflation Simulator</h1>
+            <p class="text-muted">See how inflation affects your retirement corpus over time</p>
+        </div>
+        <a href="/dashboard" class="btn btn-outline-secondary">← Back to Dashboard</a>
+    </div>
+
+    <div class="row">
+        <!-- Input Panel -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="mb-0">📝 Your Details</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form id="retirementForm">
+                        <!-- Current Age -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Current Age</label>
+                            <input type="number" class="form-control" id="currentAge" value="25" min="18" max="80" required>
+                            <small class="text-muted">Years</small>
+                        </div>
+
+                        <!-- Retirement Age -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Retirement Age</label>
+                            <input type="number" class="form-control" id="retirementAge" value="60" min="30" max="100" required>
+                            <small class="text-muted">Years</small>
+                        </div>
+
+                        <!-- Current Savings -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Current Savings/Investments</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" id="currentSavings" value="50000" min="0" required>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Investment -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Monthly Investment</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" id="monthlyInvestment" value="5000" min="0" required>
+                            </div>
+                        </div>
+
+                        <!-- Expected Return Rate -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Expected Return Rate</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="returnRate" value="10" step="0.5" min="0" max="30" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">Typical: 10-12% for equity</small>
+                        </div>
+
+                        <!-- Inflation Rate -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Inflation Rate</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="inflationRate" value="6" step="0.5" min="0" max="15" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">India average: 5-6%</small>
+                        </div>
+
+                        <!-- Calculate Button -->
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                            🚀 Calculate Retirement Corpus
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="col-lg-8 mb-4">
+            <!-- Summary Cards -->
+            <div class="row mb-4" id="summaryCards">
+                <div class="col-md-6 mb-3">
+                    <div class="card bg-primary text-white shadow-sm rounded-4">
+                        <div class="card-body">
+                            <h6 class="card-title text-white-50">Nominal Corpus</h6>
+                            <h2 class="display-6 fw-bold" id="nominalCorpus">₹0</h2>
+                            <small>Without inflation adjustment</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card bg-warning text-dark shadow-sm rounded-4">
+                        <div class="card-body">
+                            <h6 class="card-title text-dark-50">Real Corpus (Today's Value)</h6>
+                            <h2 class="display-6 fw-bold" id="realCorpus">₹0</h2>
+                            <small>After inflation adjustment</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graph -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="mb-0">📊 Corpus Growth Over Time</h5>
+                </div>
+                <div class="card-body p-4">
+                    <canvas id="growthChart" height="300"></canvas>
+                </div>
+            </div>
+
+            <!-- Detailed Insights -->
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="mb-0">💡 Key Insights</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div id="insights">
+                        <div class="alert alert-info">
+                            <strong>📌 Enter your details</strong> and click "Calculate Retirement Corpus" to see results.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/retirement.js') }}"></script>
+{% endblock %}

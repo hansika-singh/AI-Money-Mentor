@@ -1,4 +1,14 @@
+
+from flask import Flask, request, jsonify, render_template
+from flask_mail import Mail, Message
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from datetime import datetime, timedelta
+import sqlite3
+import atexit
+
 from flask import Flask, request, jsonify, render_template, make_response
+
 import yfinance as yf
 import os
 import sys
@@ -32,9 +42,14 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
         "  Obtain a free key at: https://console.groq.com/\n",
         file=sys.stderr,
     )
+
+    sys.exit(1)
+
+
     client = None
 else:
     client = Groq(api_key=GROQ_API_KEY)
+
 # ---------------- IMPORT UTILS ----------------
 from utils.sip import calculate_sip, calculate_goal_sip
 from utils.tax import calculate_tax
@@ -47,9 +62,126 @@ from utils.validation import ValidationError, validate_string, validate_float, v
 
 app = Flask(__name__)
 
+# ============================================
+# EMAIL CONFIGURATION
+# ============================================
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER', 'your-email@gmail.com')  # Change this
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS', 'your-app-password')     # Change this
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('EMAIL_USER', 'your-email@gmail.com')
 
+mail = Mail(app)
 
+# ============================================
+# DATABASE FUNCTIONS FOR EMAIL SETTINGS
+# ============================================
+def init_email_db():
+    """Create email settings table if not exists"""
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email VARCHAR(120) UNIQUE,
+            weekly_email_enabled BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
+def get_user_email_settings():
+    """Get all users with email enabled"""
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute('SELECT email FROM user_settings WHERE weekly_email_enabled = 1')
+    users = c.fetchall()
+    conn.close()
+    return [user[0] for user in users]
+
+# Initialize email database
+init_email_db()
+
+# ============================================
+# WEEKLY REPORT GENERATOR
+# ============================================
+def generate_weekly_report(user_email):
+    """Generate weekly financial report for a user"""
+    # For now, return sample data
+    # In production, fetch from database
+    return {
+        'date': datetime.now().strftime('%B %d, %Y'),
+        'total_spend': '₹12,450',
+        'spend_change': '+5.2',
+        'spend_change_class': 'positive' if 5.2 > 0 else 'negative',
+        'net_worth': '₹4,28,500',
+        'net_worth_change': '+2.1',
+        'budget_health': '85%',
+        'budget_health_class': 'positive' if 85 > 70 else 'negative',
+        'budget_health_text': 'On Track ✅' if 85 > 70 else 'Over Budget ⚠️',
+        'top_category': 'Food',
+        'top_category_amount': '₹4,200',
+        'top_categories': {
+            'Food': '₹4,200',
+            'Transport': '₹2,800',
+            'Shopping': '₹1,900',
+            'Entertainment': '₹1,500'
+        },
+        'ai_insight': 'You spent 40% more on dining out this week. Try cooking 2 extra meals at home to save ₹600.',
+        'dashboard_url': 'http://localhost:5000/dashboard',
+        'opt_out_url': 'http://localhost:5000/settings'
+    }
+
+def send_weekly_email(user_email):
+    """Send weekly report email to a user"""
+    try:
+        report_data = generate_weekly_report(user_email)
+        
+        msg = Message(
+            subject=f"📊 Weekly Financial Digest - {datetime.now().strftime('%B %d, %Y')}",
+            recipients=[user_email],
+            html=render_template('weekly_report.html', **report_data)
+        )
+        mail.send(msg)
+        print(f"✅ Email sent to {user_email}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to send email to {user_email}: {e}")
+        return False
+
+def send_weekly_reports():
+    """Send weekly reports to all users"""
+    print("🔄 Running weekly email job...")
+    users = get_user_email_settings()
+    
+    if not users:
+        print("📭 No users subscribed to weekly emails")
+        return
+    
+    success = 0
+    for user_email in users:
+        if send_weekly_email(user_email):
+            success += 1
+    
+    print(f"✅ Sent {success}/{len(users)} weekly reports")
+
+# ============================================
+# SCHEDULER - Runs every Monday at 9:00 AM
+# ============================================
+scheduler = BackgroundScheduler()
+
+scheduler.add_job(
+    func=send_weekly_reports,
+    trigger=CronTrigger(day_of_week='mon', hour=9, minute=0),
+    id='weekly_email_job',
+    replace_existing=True
+)
+scheduler.start()
+
+# Shutdown scheduler on app exit
+atexit.register(lambda: scheduler.shutdown())
 
 # ---------------- INIT DATABASE ----------------
 from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, FinancialGoalMilestone, Portfolio
@@ -76,6 +208,15 @@ with app.app_context():
 
 # ── Dev-mode startup message ─────────────────────────────────
 if os.getenv("FLASK_ENV", "development") != "production":
+
+    print("[OK] Groq client initialised successfully.")
+
+# ============================================
+# ROUTES
+# ============================================
+
+# ---------------- HOME ----------------
+
     if client:
         print("[OK] Groq client initialised successfully.")
     else:
@@ -155,6 +296,71 @@ def networth():
 def budget():
     return render_template("budget.html", active_page="budget")
 
+# ---------------- RETIREMENT ----------------
+@app.route('/retirement')
+def retirement():
+    """Retirement & Inflation Simulator Page"""
+    return render_template('retirement.html')
+
+# ---------------- SETTINGS ----------------
+@app.route('/settings')
+def settings():
+    """User settings page"""
+    return render_template('settings.html')
+
+@app.route('/api/update-email', methods=['POST'])
+def update_email():
+    """Update user email settings"""
+    data = request.json
+    email = data.get('email')
+    enabled = data.get('enabled', True)
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    
+    c.execute('''
+        INSERT OR REPLACE INTO user_settings (email, weekly_email_enabled)
+        VALUES (?, ?)
+    ''', (email, 1 if enabled else 0))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Settings updated successfully'})
+
+@app.route('/api/unsubscribe', methods=['POST'])
+def unsubscribe():
+    """Unsubscribe from weekly emails"""
+    data = request.json
+    email = data.get('email')
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    conn = sqlite3.connect('database.db')
+    c = conn.cursor()
+    c.execute('UPDATE user_settings SET weekly_email_enabled = 0 WHERE email = ?', (email,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Unsubscribed successfully'})
+
+# ---------------- TEST EMAIL ROUTES ----------------
+@app.route('/test-email')
+def test_email():
+    """Send a test email to verify configuration"""
+    email = os.getenv('EMAIL_USER', 'your-email@gmail.com')
+    send_weekly_email(email)
+    return "Test email sent! Check your inbox."
+
+@app.route('/force-weekly')
+def force_weekly():
+    """Force send weekly reports (for testing)"""
+    send_weekly_reports()
+    return "Weekly reports sent manually!"
 
 # ---------------- HEALTH CHECK ----------------
 @app.route("/health", methods=["GET"])
@@ -284,6 +490,7 @@ def ai_status():
     })
 
 
+
 # ---------------- ERROR HANDLERS ----------------
 @app.errorhandler(ValidationError)
 def handle_validation_error(error):
@@ -301,7 +508,6 @@ def bad_request(error):
         "status_code": 400
     }), 400
 
-
 @app.errorhandler(404)
 def not_found(error):
     # Return HTML page for browser navigation, JSON for API clients
@@ -313,7 +519,6 @@ def not_found(error):
         "status_code": 404
     }), 404
 
-
 @app.errorhandler(405)
 def method_not_allowed(error):
     return jsonify({
@@ -322,7 +527,6 @@ def method_not_allowed(error):
         "status_code": 405
     }), 405
 
-
 @app.errorhandler(500)
 def internal_server_error(error):
     return jsonify({
@@ -330,7 +534,6 @@ def internal_server_error(error):
         "message": "An unexpected error occurred. Please try again later.",
         "status_code": 500
     }), 500
-
 
 # ---------------- 🤖 AI CHAT ----------------
 @app.route("/chat", methods=["GET", "POST"])
@@ -348,6 +551,9 @@ def chat():
             raise ValidationError("Request body must be a JSON object")
         msg = validate_string(data.get("message"), "message")
         history = validate_history(data.get("history"))
+
+
+        messages = [{"role": "system", "content": "You are a financial advisor for India."}]
 
         # Build messages: system prompt + last 10 history turns + current message
         system_prompt = (
@@ -371,6 +577,7 @@ def chat():
             "- Friendly, practical, and easy to understand"
         )
         messages = [{"role": "system", "content": system_prompt}]
+
         messages += history[-10:]
         messages.append({"role": "user", "content": msg})
 
@@ -378,6 +585,7 @@ def chat():
             model="llama-3.1-8b-instant",
             messages=messages
         )
+
         return jsonify({
             "reply": res.choices[0].message.content
         })
@@ -389,7 +597,6 @@ def chat():
         return jsonify({
             "reply": "Unable to generate a response at the moment. Please try again later."
         }), 500
-
 
 # ---------------- 💸 SIP ----------------
 @app.route("/sip", methods=["GET", "POST"])
@@ -440,7 +647,6 @@ def goal_planner():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
 # ---------------- 📊 STOCK ----------------
 @app.route("/portfolio", methods=["POST"])
 def portfolio():
@@ -457,6 +663,10 @@ def portfolio():
     except ValidationError as e:
         raise e
     except Exception as e:
+
+        return jsonify({"error": str(e)})
+
+
         return jsonify({"error": str(e)}), 400
 
 @app.route("/api/alerts", methods=["GET"])
@@ -566,6 +776,7 @@ def delete_alert(alert_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
     
+
 # ---------------- 💸 TAX ----------------
 @app.route("/tax", methods=["GET", "POST"])
 def tax():
@@ -732,7 +943,6 @@ def tax_simulate():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
 # ---------------- 📄 PDF ----------------
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -743,7 +953,6 @@ def upload():
 
     except Exception as e:
         return jsonify({"error": str(e)})
-
 
 # ---------------- 🧠 MULTI AGENT ----------------
 @app.route("/agent", methods=["POST"])
@@ -768,7 +977,6 @@ def run_agent_route():
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-
 
 # ---------------- 💰 MONEY SCORE ----------------
 @app.route("/money-score", methods=["GET", "POST"])
@@ -874,9 +1082,7 @@ def export_pdf():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-
-# Expense Tracker Features
-
+# ---------------- EXPENSE TRACKER ----------------
 @app.route("/add_expense", methods=["POST"])
 @login_required
 def add_expense():
@@ -975,6 +1181,7 @@ def expense_insights():
             "insights": "<div class=\"insight-card\"><h3>AI Insights Offline</h3><p>Personalized AI savings suggestions are currently offline because the GROQ_API_KEY is not configured on the server. Please configure it to enable insights.</p></div>",
             "summary": totals
         })
+
     result = insights(client, expense_data)
     return jsonify(result)
 
@@ -1084,8 +1291,6 @@ def disable_recurring_expense(recurring_id):
         return jsonify({"error": str(e)}), 400
 
 # ---------------- NET WORTH TRACKER ----------------
-# Net Worth Tracker Features
-
 @app.route("/net-worth", methods=["GET", "POST"])
 @login_required
 def get_net_worth():
@@ -1161,6 +1366,15 @@ def add_liability():
 @login_required
 def delete_item():
     try:
+
+        data = request.json
+        item_type = data["type"]
+        item_id = int(data["id"])
+
+        if item_type == 'asset':
+            rows = Asset.query.order_by(Asset.id).all()
+            db.session.delete(rows[item_id])
+
         data = request.json or {}
         if not isinstance(data, dict):
             raise ValidationError("Request body must be a JSON object")
@@ -1184,6 +1398,12 @@ def delete_item():
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
+    app.run(debug=debug_mode)
 
 # Helper to check budget thresholds
 def run_threshold_checks(user_id, category, year_month=None):
@@ -1664,5 +1884,4 @@ if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
     app.run(debug=debug_mode)
-
 
