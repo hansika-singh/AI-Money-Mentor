@@ -1,6 +1,46 @@
-def calculate_tax(income, deduction_80c=0.0, deduction_80d=0.0, deduction_hra=0.0):
+def calculate_hra_exemption(basic_salary, rent_paid, hra_received, is_metro):
+    """
+    Calculates the HRA tax exemption under Section 10(13A) of the Income Tax Act.
+    Rules:
+      1. Actual HRA received.
+      2. Rent paid minus 10% of basic salary.
+      3. 50% of basic salary (metro cities) or 40% (non-metro cities).
+    Returns:
+      dict containing the three tiers, calculated exemption, and input parameters.
+    """
+    basic_salary = float(basic_salary)
+    rent_paid = float(rent_paid)
+    hra_received = float(hra_received)
+    is_metro = bool(is_metro)
+
+    tier1 = hra_received
+    tier2 = max(0.0, rent_paid - 0.10 * basic_salary)
+    pct = 0.50 if is_metro else 0.40
+    tier3 = basic_salary * pct
+
+    exemption = min(tier1, tier2, tier3)
+    return {
+        "actual_hra": round(tier1, 2),
+        "rent_minus_10_percent_basic": round(tier2, 2),
+        "salary_percentage_limit": round(tier3, 2),
+        "calculated_exemption": round(exemption, 2)
+    }
+
+
+def calculate_tax(income, deduction_80c=0.0, deduction_80d=0.0, deduction_hra=0.0, hra_inputs=None):
     # Income represents Gross Annual Income
     
+    # Calculate HRA exemption if hra_inputs is provided
+    hra_details = None
+    if hra_inputs:
+        hra_details = calculate_hra_exemption(
+            basic_salary=hra_inputs.get("basic_salary", 0.0),
+            rent_paid=hra_inputs.get("rent_paid", 0.0),
+            hra_received=hra_inputs.get("hra_received", 0.0),
+            is_metro=hra_inputs.get("is_metro", False)
+        )
+        deduction_hra = hra_details["calculated_exemption"]
+
     # 1. New Regime Calculation (FY 2024-25 / FY 2025-26)
     std_deduction_new = 75000
     taxable_new = max(0.0, income - std_deduction_new)
@@ -67,7 +107,7 @@ def calculate_tax(income, deduction_80c=0.0, deduction_80d=0.0, deduction_hra=0.
     cess_old = tax_old * 0.04
     total_old = round(tax_old + cess_old, 2)
     
-    return {
+    res_dict = {
         "gross_income": income,
         "deductions_applied": {
             "80c": ded_80c,
@@ -92,6 +132,11 @@ def calculate_tax(income, deduction_80c=0.0, deduction_80d=0.0, deduction_hra=0.
         "recommended": "New Regime" if total_new < total_old else "Old Regime",
         "savings": round(abs(total_old - total_new), 2)
     }
+
+    if hra_details:
+        res_dict["hra_exemption_details"] = hra_details
+
+    return res_dict
 
 
 def _r2(x):
@@ -151,10 +196,19 @@ def simulate_tax_scenarios(
       - deterministic lever ranking for offline explanation
     """
     def _pick(sc):
+        hra_inputs = sc.get("hra_inputs")
+        if hra_inputs:
+            hra_inputs = {
+                "basic_salary": float(hra_inputs.get("basic_salary", 0.0)),
+                "rent_paid": float(hra_inputs.get("rent_paid", 0.0)),
+                "hra_received": float(hra_inputs.get("hra_received", 0.0)),
+                "is_metro": bool(hra_inputs.get("is_metro", False))
+            }
         return {
             "deduction_80c": float(sc.get("deduction_80c", 0.0)),
             "deduction_80d": float(sc.get("deduction_80d", 0.0)),
             "deduction_hra": float(sc.get("deduction_hra", 0.0)),
+            "hra_inputs": hra_inputs,
         }
 
     a_in = _pick(scenario_a)
@@ -165,12 +219,14 @@ def simulate_tax_scenarios(
         deduction_80c=a_in["deduction_80c"],
         deduction_80d=a_in["deduction_80d"],
         deduction_hra=a_in["deduction_hra"],
+        hra_inputs=a_in["hra_inputs"],
     )
     b_calc = calculate_tax(
         income,
         deduction_80c=b_in["deduction_80c"],
         deduction_80d=b_in["deduction_80d"],
         deduction_hra=b_in["deduction_hra"],
+        hra_inputs=b_in["hra_inputs"],
     )
 
     # Switching A -> B deltas (B - A)

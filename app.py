@@ -670,11 +670,23 @@ def tax():
         deduction_80d = validate_float(data.get("deduction_80d", 0.0), "deduction_80d", min_val=0.0)
         deduction_hra = validate_float(data.get("deduction_hra", 0.0), "deduction_hra", min_val=0.0)
         
+        hra_inputs = data.get("hra_inputs")
+        if hra_inputs is not None:
+            if not isinstance(hra_inputs, dict):
+                raise ValidationError("'hra_inputs' must be a dictionary")
+            hra_inputs = {
+                "basic_salary": validate_float(hra_inputs.get("basic_salary", 0.0), "hra_inputs.basic_salary", min_val=0.0),
+                "rent_paid": validate_float(hra_inputs.get("rent_paid", 0.0), "hra_inputs.rent_paid", min_val=0.0),
+                "hra_received": validate_float(hra_inputs.get("hra_received", 0.0), "hra_inputs.hra_received", min_val=0.0),
+                "is_metro": bool(hra_inputs.get("is_metro", False))
+            }
+
         tax_details = calculate_tax(
             income,
             deduction_80c=deduction_80c,
             deduction_80d=deduction_80d,
-            deduction_hra=deduction_hra
+            deduction_hra=deduction_hra,
+            hra_inputs=hra_inputs
         )
         
         # AI Tax-saving advice
@@ -738,10 +750,26 @@ def tax_simulate():
         scenario_a_d80c = validate_float(scenario_a.get("deduction_80c", 0.0), "scenario_a.deduction_80c", min_val=0.0)
         scenario_a_d80d = validate_float(scenario_a.get("deduction_80d", 0.0), "scenario_a.deduction_80d", min_val=0.0)
         scenario_a_hra = validate_float(scenario_a.get("deduction_hra", 0.0), "scenario_a.deduction_hra", min_val=0.0)
-
+        
         scenario_b_d80c = validate_float(scenario_b.get("deduction_80c", 0.0), "scenario_b.deduction_80c", min_val=0.0)
         scenario_b_d80d = validate_float(scenario_b.get("deduction_80d", 0.0), "scenario_b.deduction_80d", min_val=0.0)
         scenario_b_hra = validate_float(scenario_b.get("deduction_hra", 0.0), "scenario_b.deduction_hra", min_val=0.0)
+
+        def validate_hra_inputs(sc_data, sc_name):
+            hra_inputs = sc_data.get("hra_inputs")
+            if hra_inputs is None:
+                return None
+            if not isinstance(hra_inputs, dict):
+                raise ValidationError(f"'{sc_name}.hra_inputs' must be a dictionary")
+            return {
+                "basic_salary": validate_float(hra_inputs.get("basic_salary", 0.0), f"{sc_name}.hra_inputs.basic_salary", min_val=0.0),
+                "rent_paid": validate_float(hra_inputs.get("rent_paid", 0.0), f"{sc_name}.hra_inputs.rent_paid", min_val=0.0),
+                "hra_received": validate_float(hra_inputs.get("hra_received", 0.0), f"{sc_name}.hra_inputs.hra_received", min_val=0.0),
+                "is_metro": bool(hra_inputs.get("is_metro", False))
+            }
+
+        scenario_a_hra_inputs = validate_hra_inputs(scenario_a, "scenario_a")
+        scenario_b_hra_inputs = validate_hra_inputs(scenario_b, "scenario_b")
 
         result = simulate_tax_scenarios(
             income,
@@ -749,11 +777,13 @@ def tax_simulate():
                 "deduction_80c": scenario_a_d80c,
                 "deduction_80d": scenario_a_d80d,
                 "deduction_hra": scenario_a_hra,
+                "hra_inputs": scenario_a_hra_inputs,
             },
             scenario_b={
                 "deduction_80c": scenario_b_d80c,
                 "deduction_80d": scenario_b_d80d,
                 "deduction_hra": scenario_b_hra,
+                "hra_inputs": scenario_b_hra_inputs,
             },
         )
 

@@ -91,3 +91,73 @@ class TestCalculateTax:
         # Taxable income = 1M - 200k = 800k
         assert result["old_regime"]["taxable_income"] == 800000
 
+    # ── HRA Exemption Engine ───────────────────────────
+    def test_calculate_hra_exemption_metro(self):
+        from utils.tax import calculate_hra_exemption
+        # Basic: 600,000, Rent: 180,000, HRA Received: 240,000, Metro: True
+        # Tier 1: 240,000
+        # Tier 2: 180,000 - 10% of 600,000 = 120,000
+        # Tier 3: 50% of 600,000 = 300,000
+        # Expected: min(240k, 120k, 300k) = 120,000
+        res = calculate_hra_exemption(600000, 180000, 240000, True)
+        assert res["actual_hra"] == 240000.0
+        assert res["rent_minus_10_percent_basic"] == 120000.0
+        assert res["salary_percentage_limit"] == 300000.0
+        assert res["calculated_exemption"] == 120000.0
+
+    def test_calculate_hra_exemption_non_metro(self):
+        from utils.tax import calculate_hra_exemption
+        # Basic: 600,000, Rent: 180,000, HRA Received: 240,000, Metro: False
+        # Tier 3: 40% of 600,000 = 240,000
+        res = calculate_hra_exemption(600000, 180000, 240000, False)
+        assert res["salary_percentage_limit"] == 240000.0
+        assert res["calculated_exemption"] == 120000.0
+
+    def test_calculate_hra_exemption_rent_less_than_10_percent_basic(self):
+        from utils.tax import calculate_hra_exemption
+        # Basic: 600,000, Rent: 50,000, HRA Received: 100,000, Metro: True
+        # Tier 2: 50,000 - 60,000 = -10,000 -> max(0, -10k) = 0
+        res = calculate_hra_exemption(600000, 50000, 100000, True)
+        assert res["rent_minus_10_percent_basic"] == 0.0
+        assert res["calculated_exemption"] == 0.0
+
+    def test_calculate_tax_integration_with_hra_inputs(self):
+        hra_inputs = {
+            "basic_salary": 600000.0,
+            "rent_paid": 180000.0,
+            "hra_received": 240000.0,
+            "is_metro": True
+        }
+        result = calculate_tax(1000000, deduction_80c=100000, deduction_80d=20000, hra_inputs=hra_inputs)
+        # HRA Exemption should be 120k
+        assert result["deductions_applied"]["hra"] == 120000.0
+        # Total deductions = 50k (std) + 100k + 20k + 120k = 290k
+        assert result["deductions_applied"]["total"] == 290000.0
+        assert result["hra_exemption_details"]["calculated_exemption"] == 120000.0
+
+    def test_simulate_tax_scenarios_integration_with_hra_inputs(self):
+        from utils.tax import simulate_tax_scenarios
+        scenario_a = {
+            "deduction_80c": 100000.0,
+            "deduction_80d": 20000.0,
+            "hra_inputs": {
+                "basic_salary": 600000.0,
+                "rent_paid": 180000.0,
+                "hra_received": 240000.0,
+                "is_metro": True
+            }
+        }
+        scenario_b = {
+            "deduction_80c": 150000.0,
+            "deduction_80d": 25000.0,
+            "hra_inputs": {
+                "basic_salary": 600000.0,
+                "rent_paid": 200000.0,
+                "hra_received": 240000.0,
+                "is_metro": True
+            }
+        }
+        res = simulate_tax_scenarios(1200000, scenario_a, scenario_b)
+        assert res["scenario_a"]["deductions_applied"]["hra"] == 120000.0
+        assert res["scenario_b"]["deductions_applied"]["hra"] == 140000.0
+
