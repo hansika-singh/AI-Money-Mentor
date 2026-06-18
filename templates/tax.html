@@ -26,9 +26,12 @@
           <input type="number" min="0" max="25000" id="taxA80d" style="width:100%; margin-bottom:10px;"
                  placeholder="e.g. 25000">
 
-          <label>HRA (₹)</label>
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>HRA (₹)</span>
+            <span class="calculate-hra-link" onclick="openHraCalculator('A')">Calculate</span>
+          </label>
           <input type="number" min="0" id="taxAhra" style="width:100%; margin-bottom:0px;"
-                 placeholder="e.g. 50000">
+                 placeholder="e.g. 50000" oninput="hraInputsA = null;">
         </div>
 
         <div style="padding:12px; border:1px solid var(--border); border-radius:12px;">
@@ -42,9 +45,12 @@
           <input type="number" min="0" max="25000" id="taxB80d" style="width:100%; margin-bottom:10px;"
                  placeholder="e.g. 10000">
 
-          <label>HRA (₹)</label>
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>HRA (₹)</span>
+            <span class="calculate-hra-link" onclick="openHraCalculator('B')">Calculate</span>
+          </label>
           <input type="number" min="0" id="taxBhra" style="width:100%; margin-bottom:0px;"
-                 placeholder="e.g. 50000">
+                 placeholder="e.g. 50000" oninput="hraInputsB = null;">
         </div>
 
       <div style="display:flex;gap:10px;margin-top:16px;">
@@ -76,11 +82,72 @@
         </div>
 
       <div id="explanationBox" style="margin-top:16px; display:none;"></div>
+    </div>
   </div>
+
+  <!-- HRA Exemption Calculator Modal -->
+  <div class="modal-overlay" id="hraModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">HRA Exemption Calculator (Sec 10(13A))</div>
+        <button class="modal-close" onclick="closeHraCalculator()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="segment-control">
+          <div class="segment-btn active" id="hraPeriodMonthly" onclick="setHraPeriod('monthly')">Monthly</div>
+          <div class="segment-btn" id="hraPeriodAnnual" onclick="setHraPeriod('annual')">Annual</div>
+        </div>
+
+        <label id="lblHraBasic">Basic Salary + DA (Monthly) (₹)</label>
+        <input type="number" min="0" id="hraBasic" placeholder="e.g. 50000" oninput="runLiveHraCalc()" style="margin-bottom:8px;">
+
+        <label id="lblHraReceived">HRA Received (Monthly) (₹)</label>
+        <input type="number" min="0" id="hraReceived" placeholder="e.g. 20000" oninput="runLiveHraCalc()" style="margin-bottom:8px;">
+
+        <label id="lblHraRent">Rent Paid (Monthly) (₹)</label>
+        <input type="number" min="0" id="hraRent" placeholder="e.g. 15000" oninput="runLiveHraCalc()" style="margin-bottom:8px;">
+
+        <label>Renting City Type</label>
+        <select id="hraIsMetro" onchange="runLiveHraCalc()" style="margin-bottom:8px;">
+          <option value="true">Metro (50% of Basic - Delhi, Mumbai, Kolkata, Chennai)</option>
+          <option value="false">Non-Metro (40% of Basic - Other Cities)</option>
+        </select>
+
+        <div class="calc-breakdown-card">
+          <div class="calc-breakdown-row">
+            <span>1. Actual HRA Received (Annual):</span>
+            <span id="breakdownTier1">₹0</span>
+          </div>
+          <div class="calc-breakdown-row">
+            <span>2. Rent Paid - 10% of Basic (Annual):</span>
+            <span id="breakdownTier2">₹0</span>
+          </div>
+          <div class="calc-breakdown-row">
+            <span>3. Salary Percentage Limit (Annual):</span>
+            <span id="breakdownTier3">₹0</span>
+          </div>
+          <div class="calc-breakdown-row result">
+            <span>Calculated Exemption (Annual):</span>
+            <span id="breakdownExemption">₹0</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeHraCalculator()">Cancel</button>
+        <button class="btn btn-gold" id="applyHraBtn" onclick="applyHraExemption()">Apply Exemption</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  let activeHraScenario = 'A';
+  let hraPeriodMode = 'monthly';
+  let hraInputsA = null;
+  let hraInputsB = null;
+
   function escapeHtml(str) {
     return String(str)
       .replaceAll('&', '&amp;')
@@ -147,12 +214,14 @@
       deduction_80c: parseFloat(document.getElementById('taxA80c').value || 0),
       deduction_80d: parseFloat(document.getElementById('taxA80d').value || 0),
       deduction_hra: parseFloat(document.getElementById('taxAhra').value || 0),
+      hra_inputs: hraInputsA
     };
 
     const scenarioB = {
       deduction_80c: parseFloat(document.getElementById('taxB80c').value || 0),
       deduction_80d: parseFloat(document.getElementById('taxB80d').value || 0),
       deduction_hra: parseFloat(document.getElementById('taxBhra').value || 0),
+      hra_inputs: hraInputsB
     };
 
     setLoading('taxBtn', true);
@@ -235,6 +304,8 @@
   }
 
   function resetTax() {
+    hraInputsA = null;
+    hraInputsB = null;
     document.getElementById('taxIncome').value = '';
     document.getElementById('taxA80c').value = '';
     document.getElementById('taxA80d').value = '';
@@ -268,6 +339,108 @@
 
     const exportSection = document.getElementById('export-section');
     if (exportSection) exportSection.style.display = 'none';
+  }
+
+  function openHraCalculator(scenario) {
+    activeHraScenario = scenario;
+    
+    // Clear / Load existing inputs
+    const inputs = scenario === 'A' ? hraInputsA : hraInputsB;
+    if (inputs) {
+      const factor = hraPeriodMode === 'monthly' ? 12 : 1;
+      document.getElementById('hraBasic').value = inputs.basic_salary / factor;
+      document.getElementById('hraReceived').value = inputs.hra_received / factor;
+      document.getElementById('hraRent').value = inputs.rent_paid / factor;
+      document.getElementById('hraIsMetro').value = inputs.is_metro ? "true" : "false";
+    } else {
+      document.getElementById('hraBasic').value = '';
+      document.getElementById('hraReceived').value = '';
+      document.getElementById('hraRent').value = '';
+      document.getElementById('hraIsMetro').value = "true";
+    }
+    
+    document.getElementById('hraModal').classList.add('active');
+    runLiveHraCalc();
+  }
+
+  function closeHraCalculator() {
+    document.getElementById('hraModal').classList.remove('active');
+  }
+
+  function setHraPeriod(mode) {
+    hraPeriodMode = mode;
+    document.getElementById('hraPeriodMonthly').classList.toggle('active', mode === 'monthly');
+    document.getElementById('hraPeriodAnnual').classList.toggle('active', mode === 'annual');
+    
+    // Update labels
+    const labelSuffix = mode === 'monthly' ? '(Monthly) (₹)' : '(Annual) (₹)';
+    document.getElementById('lblHraBasic').innerText = `Basic Salary + DA ${labelSuffix}`;
+    document.getElementById('lblHraReceived').innerText = `HRA Received ${labelSuffix}`;
+    document.getElementById('lblHraRent').innerText = `Rent Paid ${labelSuffix}`;
+    
+    runLiveHraCalc();
+  }
+
+  function runLiveHraCalc() {
+    const basicVal = parseFloat(document.getElementById('hraBasic').value) || 0;
+    const receivedVal = parseFloat(document.getElementById('hraReceived').value) || 0;
+    const rentVal = parseFloat(document.getElementById('hraRent').value) || 0;
+    const isMetro = document.getElementById('hraIsMetro').value === 'true';
+    
+    const factor = hraPeriodMode === 'monthly' ? 12 : 1;
+    const basicAnnual = basicVal * factor;
+    const hraAnnual = receivedVal * factor;
+    const rentAnnual = rentVal * factor;
+    
+    const tier1 = hraAnnual;
+    const tier2 = Math.max(0, rentAnnual - 0.10 * basicAnnual);
+    const tier3 = basicAnnual * (isMetro ? 0.50 : 0.40);
+    const exemption = Math.min(tier1, tier2, tier3);
+    
+    document.getElementById('breakdownTier1').innerText = '₹' + fmtNum(tier1);
+    document.getElementById('breakdownTier2').innerText = '₹' + fmtNum(tier2);
+    document.getElementById('breakdownTier3').innerText = '₹' + fmtNum(tier3);
+    document.getElementById('breakdownExemption').innerText = '₹' + fmtNum(exemption);
+  }
+
+  function applyHraExemption() {
+    const basicVal = parseFloat(document.getElementById('hraBasic').value) || 0;
+    const receivedVal = parseFloat(document.getElementById('hraReceived').value) || 0;
+    const rentVal = parseFloat(document.getElementById('hraRent').value) || 0;
+    const isMetro = document.getElementById('hraIsMetro').value === 'true';
+    
+    const factor = hraPeriodMode === 'monthly' ? 12 : 1;
+    const basicAnnual = basicVal * factor;
+    const hraAnnual = receivedVal * factor;
+    const rentAnnual = rentVal * factor;
+    
+    const tier1 = hraAnnual;
+    const tier2 = Math.max(0, rentAnnual - 0.10 * basicAnnual);
+    const tier3 = basicAnnual * (isMetro ? 0.50 : 0.40);
+    const exemption = Math.min(tier1, tier2, tier3);
+    
+    const inputId = activeHraScenario === 'A' ? 'taxAhra' : 'taxBhra';
+    document.getElementById(inputId).value = Math.round(exemption);
+    
+    const inputs = {
+      basic_salary: basicAnnual,
+      rent_paid: rentAnnual,
+      hra_received: hraAnnual,
+      is_metro: isMetro
+    };
+    
+    if (activeHraScenario === 'A') {
+      hraInputsA = inputs;
+    } else {
+      hraInputsB = inputs;
+    }
+    
+    closeHraCalculator();
+    
+    // Automatically trigger simulation if income is provided
+    if (document.getElementById('taxIncome').value) {
+      simulateTax();
+    }
   }
 </script>
 {% endblock %}
