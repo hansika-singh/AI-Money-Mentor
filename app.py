@@ -1083,85 +1083,85 @@ def _get_period_key(frequency: str, d):
     return d.strftime("%Y")
 
 
-@app.route("/recurring-expense", methods=["POST"])
-def create_recurring_expense():
-    """
-    Create a recurring expense template.
-    """
-    try:
-        data = request.json or {}
-        if not isinstance(data, dict):
-            raise ValidationError("Request body must be a JSON object")
+# @app.route("/recurring-expense", methods=["POST"])
+# def create_recurring_expense():
+#     """
+#     Create a recurring expense template.
+#     """
+#     try:
+#         data = request.json or {}
+#         if not isinstance(data, dict):
+#             raise ValidationError("Request body must be a JSON object")
 
-        category = validate_string(data.get("category"), "category")
-        amount = validate_float(data.get("amount"), "amount", min_val=0.01)
-        start_date = validate_string(data.get("start_date"), "start_date")  # YYYY-MM-DD
-        frequency = _validate_frequency(data.get("frequency"))
+#         category = validate_string(data.get("category"), "category")
+#         amount = validate_float(data.get("amount"), "amount", min_val=0.01)
+#         start_date = validate_string(data.get("start_date"), "start_date")  # YYYY-MM-DD
+#         frequency = _validate_frequency(data.get("frequency"))
 
-        active = data.get("active", True)
-        if not isinstance(active, bool):
-            raise ValidationError("active must be a boolean")
+#         active = data.get("active", True)
+#         if not isinstance(active, bool):
+#             raise ValidationError("active must be a boolean")
 
-        end_date = data.get("end_date", None)
-        if end_date is not None:
-            end_date = validate_string(end_date, "end_date")  # YYYY-MM-DD
+#         end_date = data.get("end_date", None)
+#         if end_date is not None:
+#             end_date = validate_string(end_date, "end_date")  # YYYY-MM-DD
 
-        # Validate date format (YYYY-MM-DD)
-        import datetime
-        try:
-            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
-        except Exception:
-            raise ValidationError("start_date must be in YYYY-MM-DD format")
+#         # Validate date format (YYYY-MM-DD)
+#         import datetime
+#         try:
+#             start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+#         except Exception:
+#             raise ValidationError("start_date must be in YYYY-MM-DD format")
 
-        if end_date:
-            try:
-                end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
-            except Exception:
-                raise ValidationError("end_date must be in YYYY-MM-DD format")
-            if end_dt < start_dt:
-                raise ValidationError("end_date cannot be before start_date")
+#         if end_date:
+#             try:
+#                 end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+#             except Exception:
+#                 raise ValidationError("end_date must be in YYYY-MM-DD format")
+#             if end_dt < start_dt:
+#                 raise ValidationError("end_date cannot be before start_date")
 
-        rexp = RecurringExpense(
-            category=category,
-            amount=amount,
-            start_date=start_date,
-            frequency=frequency,
-            active=active,
-            end_date=end_date,
-        )
-        db.session.add(rexp)
-        db.session.commit()
-        return jsonify(rexp.to_dict()), 201
+#         rexp = RecurringExpense(
+#             category=category,
+#             amount=amount,
+#             start_date=start_date,
+#             frequency=frequency,
+#             active=active,
+#             end_date=end_date,
+#         )
+#         db.session.add(rexp)
+#         db.session.commit()
+#         return jsonify(rexp.to_dict()), 201
 
-    except ValidationError as e:
-        raise e
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-
-@app.route("/recurring-expense", methods=["GET"])
-def list_recurring_expenses():
-    try:
-        items = RecurringExpense.query.order_by(RecurringExpense.id.desc()).all()
-        return jsonify([i.to_dict() for i in items])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+#     except ValidationError as e:
+#         raise e
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
 
 
-@app.route("/recurring-expense/<int:recurring_id>", methods=["DELETE"])
-def disable_recurring_expense(recurring_id):
-    """
-    Disable a recurring expense template.
-    """
-    try:
-        item = db.session.get(RecurringExpense, recurring_id)
-        if not item:
-            return jsonify({"error": "Recurring expense not found"}), 404
-        item.active = False
-        db.session.commit()
-        return jsonify({"status": "success", "id": recurring_id})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+# @app.route("/recurring-expense", methods=["GET"])
+# def list_recurring_expenses():
+#     try:
+#         items = RecurringExpense.query.order_by(RecurringExpense.id.desc()).all()
+#         return jsonify([i.to_dict() for i in items])
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
+
+
+# @app.route("/recurring-expense/<int:recurring_id>", methods=["DELETE"])
+# def disable_recurring_expense(recurring_id):
+#     """
+#     Disable a recurring expense template.
+#     """
+#     try:
+#         item = db.session.get(RecurringExpense, recurring_id)
+#         if not item:
+#             return jsonify({"error": "Recurring expense not found"}), 404
+#         item.active = False
+#         db.session.commit()
+#         return jsonify({"status": "success", "id": recurring_id})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 400
 
 # ---------------- NET WORTH TRACKER ----------------
 # Net Worth Tracker Features
