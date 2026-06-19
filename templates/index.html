@@ -1715,9 +1715,9 @@
     <div id="sip" class="page">
       <div class="page-title">📈 SIP <span>Calculator</span></div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
+       <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: start; justify-content: center; width: 100%;"></div>
 
-        <div class="card">
+        <div class="card" style="flex: 1; min-width: 320px; max-width: 500px;"></div>
           <div class="card-title">SIP Projection</div>
 
           <label>Monthly Investment (₹)</label>
@@ -1776,8 +1776,9 @@
     <!-- ── TAX PLANNER ─────────────── -->
     <div id="tax" class="page">
       <div class="page-title">💸 Tax <span>Planner</span></div>
-      <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; align-items: start; max-width: 950px;">
-        <div class="card">
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: start; justify-content: center; max-width: 950px; width: 100%;">
+        
+        <div class="card" style="flex: 1; min-width: 320px; max-width: 450px;">
           <div class="card-title">Income Tax Calculator (New Regime)</div>
           <label>Gross Annual Income (₹)</label>
           <input type="number" required min="0" id="taxIncome" placeholder="e.g. 1200000">
@@ -1786,7 +1787,8 @@
           </button>
           <div id="taxResult" class="result-box"></div>
         </div>
-        <div class="card" id="taxComparisonCard" style="display:none; min-height: 280px;">
+
+        <div class="card" id="taxComparisonCard" style="display:none; min-height: 280px; flex: 1.2; min-width: 320px; max-width: 500px;">
           <div class="card-title">Regime Comparison (Old vs. New)</div>
           <div id="taxComparisonResult"></div>
         </div>
