@@ -670,6 +670,13 @@ def dashboard_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+@app.route('/retirement')
+def retirement():
+    """Retirement & Inflation Simulator Page"""
+    return render_template('retirement.html')
+
+    
 @app.route("/dashboard/recent-activity")
 @login_required
 def recent_activity():
