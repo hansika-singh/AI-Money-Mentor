@@ -799,66 +799,58 @@ def internal_server_error(error):
     }), 500
 
 # ---------------- 🤖 AI CHAT ----------------
-@app.route("/chat", methods=["GET", "POST"])
+@app.route("/chat", methods=["POST"])
 def chat():
-    if request.method == "GET":
-        return render_template("chat.html", active_page="chat")
     try:
-        if client is None:
-            return jsonify({
-                "reply": "AI Money Mentor is offline because GROQ_API_KEY is not configured. Please set GROQ_API_KEY in your env/config files."
-            })
+        data = request.json
+        msg = data.get("message")
+        history = data.get("history", [])
 
-        data = request.json or {}
-        if not isinstance(data, dict):
-            raise ValidationError("Request body must be a JSON object")
-        msg = validate_string(data.get("message"), "message")
-        history = validate_history(data.get("history"))
+        # Stronger system prompt to prevent hallucinations
+        system_prompt = """You are a professional financial advisor for Indian users.
 
+CRITICAL RULES - YOU MUST FOLLOW:
+1. NEVER invent numbers, amounts, or financial data about the user.
+2. If you don't know the user's income, savings, or expenses, ASK for that information.
+3. If the user asks for advice without providing data, give general methodology only (e.g., "A common rule is 50/30/20: 50% needs, 30% wants, 20% savings").
+4. Always be honest about what you don't know.
+5. Provide practical, actionable advice based ONLY on information the user has shared.
 
-        messages = [{"role": "system", "content": "You are a financial advisor for India."}]
+Example responses:
+- User: "Give me a budget breakdown" → "I don't have your income information yet. Could you please share your monthly income and expenses so I can create a personalized budget?"
+- User: "I earn ₹80,000 monthly" → "Great! Based on your ₹80,000 income, here's a budget breakdown..."
 
-        # Build messages: system prompt + last 10 history turns + current message
-        system_prompt = (
-            "You are an expert AI financial advisor for Indian users.\n\n"
-            "Your job:\n"
-            "- Help users manage money smartly\n"
-            "- Teach budgeting, saving, and investing\n"
-            "- Give simple, practical, real-life advice\n\n"
-            "Response rules:\n"
-            "- Always use structured format:\n"
-            "Income / Situation Summary:\n"
-            "- ...\n"
-            "Budget Breakdown (if applicable):\n"
-            "- Needs: 50%\n"
-            "- Wants: 30%\n"
-            "- Savings: 20%\n"
-            "Advice:\n"
-            "- Give clear steps\n"
-            "- Keep it simple and actionable\n\n"
-            "Tone:\n"
-            "- Friendly, practical, and easy to understand"
-        )
+Structure your responses clearly with:
+- Brief summary
+- Actionable steps
+- Specific recommendations
+
+Be friendly, supportive, and encouraging."""
+
         messages = [{"role": "system", "content": system_prompt}]
-
-        messages += history[-10:]
+        
+        # Add conversation history (last 10 messages)
+        if history:
+            messages += history[-10:]
+        
         messages.append({"role": "user", "content": msg})
 
         res = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=messages
+            messages=messages,
+            temperature=0.7,
+            max_tokens=500
         )
 
-        return jsonify({
-            "reply": res.choices[0].message.content
-        })
+        reply = res.choices[0].message.content
+        
+        # Apply markdown formatting on backend as well (optional)
+        return jsonify({"reply": reply})
 
-    except ValidationError as e:
-        raise e
     except Exception as e:
-        app.logger.error(f"Groq API Error: {str(e)}")
+        app.logger.error(f"Chat error: {e}")
         return jsonify({
-            "reply": "Unable to generate a response at the moment. Please try again later."
+            "reply": "⚠️ I'm having trouble connecting. Please try again in a moment."
         }), 500
 
 # ---------------- 💸 SIP ----------------

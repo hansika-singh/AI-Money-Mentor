@@ -2117,21 +2117,61 @@
        DASHBOARD CHAT
     ══════════════════════════════════════════════ */
     function appendMsg(boxId, role, text) {
-      const box = document.getElementById(boxId);
-      const dashWelcome = document.getElementById('chatWelcome');
-      const chatWelcome = document.getElementById('chatPageWelcome');
-      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+    const box = document.getElementById(boxId);
+    const dashWelcome = document.getElementById('chatWelcome');
+    const chatWelcome = document.getElementById('chatPageWelcome');
+    
+    if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
         dashWelcome.classList.add('hidden');
-      }
-      if (chatWelcome && !chatWelcome.classList.contains('hidden')) {
-        chatWelcome.classList.add('hidden');
-      }
-      const d = document.createElement('div');
-      d.className = `msg ${role}`;
-      d.innerHTML = `<div class="sender">${role === 'user' ? 'You' : 'AI Advisor'}</div>${text}`;
-      box.appendChild(d);
-      box.scrollTop = box.scrollHeight;
     }
+    if (chatWelcome && !chatWelcome.classList.contains('hidden')) {
+        chatWelcome.classList.add('hidden');
+    }
+    
+    const d = document.createElement('div');
+    d.className = `msg ${role}`;
+    
+    let content = text;
+    
+    // Only format markdown for bot messages
+    if (role === 'bot') {
+        content = formatMarkdown(text);
+    }
+    
+    d.innerHTML = `<div class="sender">${role === 'user' ? 'You' : 'AI Advisor'}</div>${content}`;
+    box.appendChild(d);
+    box.scrollTop = box.scrollHeight;
+}
+
+// Markdown formatting function
+function formatMarkdown(text) {
+    if (!text) return '';
+    
+    // Escape HTML to prevent XSS
+    let formatted = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    
+    // Bold: **text** -> <strong>text</strong>
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic: *text* -> <em>text</em> (but not inside bold)
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Lists: - item -> <li>item</li>
+    formatted = formatted.replace(/^- (.*?)$/gm, '<li>$1</li>');
+    
+    // Wrap consecutive list items in <ul>
+    formatted = formatted.replace(/(<li>.*<\/li>\s*)+/g, '<ul>$1</ul>');
+    
+    // Line breaks: \n -> <br>
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Headers: # Header -> <h3>Header</h3>
+    formatted = formatted.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+    formatted = formatted.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+    formatted = formatted.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+    
+    return formatted;
+}
 
     async function dashSend() {
       const inp = document.getElementById('dashMsg');
