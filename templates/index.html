@@ -1447,6 +1447,29 @@
       max-height: 280px;
       overflow: hidden;
       position: relative;
+
+      /* Safety Indicator */
+.safety-indicator {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.safety-indicator.passed {
+    color: #2ecc8a;
+    background: rgba(46, 204, 138, 0.1);
+}
+.safety-indicator.warning {
+    color: #f39c12;
+    background: rgba(243, 156, 18, 0.1);
+}
+.safety-indicator.failed {
+    color: #e05252;
+    background: rgba(224, 82, 82, 0.1);
+}
     }
   </style>
 </head>
@@ -2117,7 +2140,7 @@
     /* ══════════════════════════════════════════════
        DASHBOARD CHAT
     ══════════════════════════════════════════════ */
-    function appendMsg(boxId, role, text) {
+    function appendMsg(boxId, role, text, safety) {
     const box = document.getElementById(boxId);
     const dashWelcome = document.getElementById('chatWelcome');
     const chatWelcome = document.getElementById('chatPageWelcome');
@@ -2133,62 +2156,79 @@
     d.className = `msg ${role}`;
     
     let content = text;
-    
-    // Only format markdown for bot messages
     if (role === 'bot') {
         content = formatMarkdown(text);
     }
     
     d.innerHTML = `<div class="sender">${role === 'user' ? 'You' : 'AI Advisor'}</div>${content}`;
+    
+    // Add safety indicator for bot messages
+    if (role === 'bot' && safety) {
+        const indicator = document.createElement('div');
+        const passed = safety.passed;
+        const confidence = safety.confidence_level || 'high';
+        
+        let className = 'safety-indicator';
+        let icon = '✅';
+        let text = 'All safety checks passed';
+        
+        if (!passed) {
+            className += ' failed';
+            icon = '⚠️';
+            text = 'Response modified for safety';
+        } else if (confidence === 'medium') {
+            className += ' warning';
+            icon = '🟡';
+            text = 'Medium confidence - Verify details';
+        } else if (confidence === 'low') {
+            className += ' failed';
+            icon = '🔴';
+            text = 'Low confidence - Verify details';
+        }
+        
+        indicator.className = className;
+        indicator.innerHTML = `${icon} ${text}`;
+        d.appendChild(indicator);
+    }
+    
     box.appendChild(d);
     box.scrollTop = box.scrollHeight;
 }
 
-// Markdown formatting function
-function formatMarkdown(text) {
-    if (!text) return '';
-    
-    // Escape HTML to prevent XSS
-    let formatted = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    
-    // Bold: **text** -> <strong>text</strong>
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // Italic: *text* -> <em>text</em> (but not inside bold)
-    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    
-    // Lists: - item -> <li>item</li>
-    formatted = formatted.replace(/^- (.*?)$/gm, '<li>$1</li>');
-    
-    // Wrap consecutive list items in <ul>
-    formatted = formatted.replace(/(<li>.*<\/li>\s*)+/g, '<ul>$1</ul>');
-    
-    // Line breaks: \n -> <br>
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    // Headers: # Header -> <h3>Header</h3>
-    formatted = formatted.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
-    formatted = formatted.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
-    formatted = formatted.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
-    
-    return formatted;
+    async function dashSend() {
+    const inp = document.getElementById('dashMsg');
+    const msg = inp.value.trim();
+    if (!msg) return;
+    inp.value = '';
+    appendMsg('dashChat', 'user', msg);
+    setLoading('dashBtn', true);
+    try {
+        const data = await apiFetch('/chat', { message: msg });
+        appendMsg('dashChat', 'bot', data.reply, data.safety);
+    } catch (e) {
+        appendMsg('dashChat', 'bot', '⚠ Could not reach server.');
+    }
+    setLoading('dashBtn', false);
 }
 
-    async function dashSend() {
-      const inp = document.getElementById('dashMsg');
-      const msg = inp.value.trim();
-      if (!msg) return;
-      inp.value = '';
-      appendMsg('dashChat', 'user', msg);
-      setLoading('dashBtn', true);
-      try {
-        const data = await apiFetch('/chat', { message: msg });
-        appendMsg('dashChat', 'bot', data.reply || data.error || 'No response');
-      } catch (e) {
-        appendMsg('dashChat', 'bot', '⚠ Could not reach server. Is Flask running?');
-      }
-      setLoading('dashBtn', false);
+async function chatSend() {
+    const inp = document.getElementById('chatInput');
+    const msg = inp.value.trim();
+    if (!msg) return;
+    inp.value = '';
+    appendMsg('chatMessages', 'user', msg);
+    setLoading('chatBtn', true);
+    try {
+        const data = await apiFetch('/chat', { message: msg, history: chatHistory });
+        const reply = data.reply || data.error;
+        chatHistory.push({ role: 'user', content: msg });
+        chatHistory.push({ role: 'assistant', content: reply });
+        appendMsg('chatMessages', 'bot', reply, data.safety);
+    } catch (e) {
+        appendMsg('chatMessages', 'bot', '⚠ Could not reach server.');
     }
+    setLoading('chatBtn', false);
+}
 
     function dashQuick(text) {
       document.getElementById('dashMsg').value = text;
@@ -2201,26 +2241,7 @@ function formatMarkdown(text) {
     // Stores conversation history as {role, content} pairs for context
     const chatHistory = [];
 
-    async function chatSend() {
-      const inp = document.getElementById('chatInput');
-      const msg = inp.value.trim();
-      if (!msg) return;
-      inp.value = '';
-      appendMsg('chatMessages', 'user', msg);
-      setLoading('chatBtn', true);
-      try {
-        const data = await apiFetch('/chat', { message: msg, history: chatHistory });
-        const reply = data.reply || data.error;
-        // Save both turns to history so context is passed on next message
-        chatHistory.push({ role: 'user', content: msg });
-        chatHistory.push({ role: 'assistant', content: reply });
-        appendMsg('chatMessages', 'bot', reply);
-      } catch (e) {
-        appendMsg('chatMessages', 'bot', '⚠ Could not reach server.');
-      }
-      setLoading('chatBtn', false);
-    }
-
+    
     function chatQuick(text) {
       document.getElementById('chatInput').value = text;
       chatSend();
