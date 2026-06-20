@@ -11,6 +11,39 @@ from flask_login import UserMixin
 
 db = SQLAlchemy()
 
+class RecurringExpense(db.Model):
+    """Model for recurring expenses"""
+    __tablename__ = 'recurring_expenses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, default=1)  # For now, single user
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    merchant = db.Column(db.String(100))
+    frequency = db.Column(db.String(20), nullable=False)  # daily, weekly, monthly, quarterly, yearly
+    start_date = db.Column(db.Date, nullable=False)
+    next_due_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+    auto_add = db.Column(db.Boolean, default=True)  # Auto-add vs Ask before adding
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_processed = db.Column(db.Date, nullable=True)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'amount': self.amount,
+            'category': self.category,
+            'merchant': self.merchant,
+            'frequency': self.frequency,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'next_due_date': self.next_due_date.isoformat() if self.next_due_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'auto_add': self.auto_add,
+            'is_active': self.is_active
+        }
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -32,6 +65,7 @@ class User(UserMixin, db.Model):
         db.String(255),
         nullable=False
     )
+
 
 class Portfolio(db.Model):
     __tablename__ = "portfolio"
