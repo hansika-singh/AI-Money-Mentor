@@ -368,3 +368,107 @@ class WeeklyDigestLog(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
+# ============================================
+# LEDGER SYSTEM MODELS
+# ============================================
+
+
+
+class Account(db.Model):
+    """Bank Account Model"""
+    __tablename__ = 'accounts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # ✅ FIXED
+    account_type = db.Column(db.String(50), nullable=False)
+    account_name = db.Column(db.String(100), nullable=False)
+    balance = db.Column(db.Numeric(15, 2), default=0.00)
+    currency = db.Column(db.String(10), default='INR')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # ✅ ADD THIS
+    user = db.relationship("User", backref="accounts")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'account_type': self.account_type,
+            'account_name': self.account_name,
+            'balance': float(self.balance),
+            'currency': self.currency,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def credit(self, amount):
+        self.balance = float(self.balance) + amount
+        return self
+    
+    def debit(self, amount):
+        if float(self.balance) < amount:
+            raise ValueError(f"Insufficient balance. Available: {self.balance}, Required: {amount}")
+        self.balance = float(self.balance) - amount
+        return self
+
+
+class Transaction(db.Model):
+    """Transaction Model - Atomic unit"""
+    __tablename__ = 'transactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    reference_id = db.Column(db.String(100), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # ✅ FIXED
+    transaction_type = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.String(20), default='PENDING')
+    total_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    description = db.Column(db.Text)
+    metadata_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # ✅ ADD THIS
+    user = db.relationship("User", backref="transactions")
+    entries = db.relationship('LedgerEntry', backref='transaction', lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'reference_id': self.reference_id,
+            'transaction_type': self.transaction_type,
+            'status': self.status,
+            'total_amount': float(self.total_amount),
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'entries': [e.to_dict() for e in self.entries]
+        }
+
+
+class LedgerEntry(db.Model):
+    """Ledger Entry - Double-entry accounting"""
+    __tablename__ = 'ledger_entries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    entry_type = db.Column(db.String(10), nullable=False)  # DEBIT or CREDIT
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    description = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    account = db.relationship('Account', backref='entries', lazy=True)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'transaction_id': self.transaction_id,
+            'account_id': self.account_id,
+            'account_name': self.account.account_name if self.account else None,
+            'entry_type': self.entry_type,
+            'amount': float(self.amount),
+            'description': self.description,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None
+        }

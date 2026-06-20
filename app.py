@@ -28,6 +28,7 @@ from werkzeug.security import (
     check_password_hash
 )
 
+from flask_mail import Mail, Message
 # Load environment variables from .env file (if present)
 load_dotenv()
 
@@ -2015,6 +2016,181 @@ def check_all_recurring_expenses_job():
 
         db.session.commit()
 
+
+# ---------------- LEDGER SYSTEM ----------------
+from utils.ledger import LedgerSystem
+
+@app.route('/ledger')
+@login_required
+def ledger_page():
+    """Ledger System Page"""
+    return render_template('ledger.html', active_page='ledger')
+
+@app.route('/api/ledger/accounts', methods=['GET'])
+@login_required
+def get_accounts():
+    """Get all accounts for current user"""
+    try:
+        accounts = LedgerSystem.get_user_accounts(current_user.id)
+        summary = LedgerSystem.get_account_summary(current_user.id)
+        
+        return jsonify({
+            'success': True,
+            'accounts': [a.to_dict() for a in accounts],
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/ledger/account', methods=['POST'])
+@login_required
+def create_account():
+    """Create a new account"""
+    try:
+        data = request.json
+        account_type = data.get('account_type')
+        account_name = data.get('account_name')
+        initial_balance = data.get('initial_balance', 0.0)
+        
+        if not account_type or not account_name:
+            return jsonify({'error': 'Account type and name are required'}), 400
+        
+        account = LedgerSystem.create_account(
+            current_user.id,
+            account_type,
+            account_name,
+            initial_balance
+        )
+        
+        return jsonify({
+            'success': True,
+            'account': account.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/ledger/transfer', methods=['POST'])
+@login_required
+def transfer():
+    """Transfer money between accounts"""
+    try:
+        data = request.json
+        from_account_id = data.get('from_account_id')
+        to_account_id = data.get('to_account_id')
+        amount = data.get('amount')
+        description = data.get('description', '')
+        
+        if not all([from_account_id, to_account_id, amount]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        result = LedgerSystem.transfer(
+            from_account_id,
+            to_account_id,
+            float(amount),
+            description
+        )
+        
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ledger/deposit', methods=['POST'])
+@login_required
+def deposit():
+    """Deposit money into account"""
+    try:
+        data = request.json
+        account_id = data.get('account_id')
+        amount = data.get('amount')
+        description = data.get('description', '')
+        
+        if not account_id or not amount:
+            return jsonify({'error': 'Account ID and amount are required'}), 400
+        
+        result = LedgerSystem.deposit(int(account_id), float(amount), description)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ledger/withdraw', methods=['POST'])
+@login_required
+def withdraw():
+    """Withdraw money from account"""
+    try:
+        data = request.json
+        account_id = data.get('account_id')
+        amount = data.get('amount')
+        description = data.get('description', '')
+        
+        if not account_id or not amount:
+            return jsonify({'error': 'Account ID and amount are required'}), 400
+        
+        result = LedgerSystem.withdraw(int(account_id), float(amount), description)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ledger/transactions/<int:account_id>', methods=['GET'])
+@login_required
+def get_transactions(account_id):
+    """Get transaction history for an account"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        history = LedgerSystem.get_transaction_history(account_id, limit)
+        return jsonify({
+            'success': True,
+            'transactions': history,
+            'count': len(history)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/ledger/balance/<int:account_id>', methods=['GET'])
+@login_required
+def get_balance(account_id):
+    """Get account balance"""
+    try:
+        balance = LedgerSystem.get_balance(account_id)
+        return jsonify({
+            'success': True,
+            'account_id': account_id,
+            'balance': balance
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/ledger/reconcile/<int:account_id>', methods=['POST'])
+@login_required
+def reconcile(account_id):
+    """Reconcile account balance"""
+    try:
+        result = LedgerSystem.reconcile_account(account_id)
+        return jsonify({
+            'success': True,
+            'reconciliation': result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/ledger/summary', methods=['GET'])
+@login_required
+def get_ledger_summary():
+    """Get summary of all accounts"""
+    try:
+        summary = LedgerSystem.get_account_summary(current_user.id)
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+        
 # ---------------- PORTFOLIO TRACKER ----------------
 @app.route("/portfolio-page")
 @login_required
