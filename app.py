@@ -27,7 +27,8 @@ from werkzeug.security import (
     generate_password_hash,
     check_password_hash
 )
-
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry
+from utils.portfolio_optimizer import PortfolioOptimizer
 from flask_mail import Mail, Message
 # Load environment variables from .env file (if present)
 load_dotenv()
@@ -375,6 +376,88 @@ def retirement():
     """Retirement & Inflation Simulator Page"""
     return render_template('retirement.html')
 
+
+# ---------------- PORTFOLIO OPTIMIZER ----------------
+
+
+@app.route('/portfolio-optimizer')
+@login_required
+def portfolio_optimizer_page():
+    """Portfolio Optimizer Page"""
+    return render_template('portfolio_optimizer.html', active_page='portfolio_optimizer')
+
+@app.route('/api/portfolio/analyze', methods=['POST'])
+@login_required
+def analyze_portfolio():
+    """Analyze portfolio using Modern Portfolio Theory"""
+    try:
+        data = request.json
+        holdings = data.get('holdings', [])
+        
+        if not holdings:
+            return jsonify({'error': 'No holdings provided'}), 400
+        
+        # Create optimizer
+        optimizer = PortfolioOptimizer(holdings)
+        
+        # Fetch historical data
+        optimizer.fetch_historical_data()
+        
+        # Get portfolio summary
+        summary = optimizer.get_portfolio_summary()
+        
+        # Calculate efficient frontier
+        frontier = optimizer.calculate_efficient_frontier()
+        
+        # Get rebalancing suggestions
+        rebalancing = optimizer.get_rebalancing_suggestions()
+        
+        # Get correlation matrix
+        correlation = optimizer.calculate_correlation_matrix()
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'efficient_frontier': frontier['frontier'],
+            'max_sharpe': {
+                'return': frontier['max_sharpe']['expected_return'] * 100,
+                'volatility': frontier['max_sharpe']['volatility'] * 100,
+                'sharpe': frontier['max_sharpe']['sharpe_ratio']
+            },
+            'rebalancing': rebalancing,
+            'correlation_matrix': correlation.to_dict(),
+            'symbols': optimizer.symbols
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/portfolio/stress-test', methods=['POST'])
+@login_required
+def stress_test_portfolio():
+    """Stress test portfolio under different scenarios"""
+    try:
+        data = request.json
+        holdings = data.get('holdings', [])
+        scenario = data.get('scenario', 'mild_crash')
+        
+        if not holdings:
+            return jsonify({'error': 'No holdings provided'}), 400
+        
+        # Create optimizer
+        optimizer = PortfolioOptimizer(holdings)
+        optimizer.fetch_historical_data()
+        
+        # Run stress test
+        result = optimizer.stress_test(scenario)
+        
+        return jsonify({
+            'success': True,
+            'stress_test': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 # ---------------- SETTINGS ----------------
 @app.route('/settings')
 def settings():
