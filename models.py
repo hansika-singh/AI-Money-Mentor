@@ -288,61 +288,6 @@ class FinancialGoal(db.Model):
         }
 
 
-# class RecurringExpense(db.Model):
-#     __tablename__ = "recurring_expenses"
-
-<<<<<<< HEAD
-#     id = db.Column(db.Integer, primary_key=True)
-#     category = db.Column(db.String(120), nullable=False)
-#     amount = db.Column(db.Float, nullable=False)
-=======
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    user = db.relationship("User", backref="recurring_expenses")
-    id = db.Column(db.Integer, primary_key=True)
-    category = db.Column(db.String(120), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
->>>>>>> upstream/main
-
-#     # Stored as YYYY-MM-DD (strings) to keep the model consistent with existing Expense.date usage
-#     start_date = db.Column(db.String(40), nullable=False)
-
-#     frequency = db.Column(db.String(20), nullable=False)  # monthly|weekly|yearly
-#     active = db.Column(db.Boolean, default=True)
-
-#     # Optional end date (YYYY-MM-DD)
-#     end_date = db.Column(db.String(40), nullable=True)
-
-#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-#     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-<<<<<<< HEAD
-#     def to_dict(self):
-#         return {
-#             "id": self.id,
-#             "category": self.category,
-#             "amount": self.amount,
-#             "start_date": self.start_date,
-#             "frequency": self.frequency,
-#             "active": self.active,
-#             "end_date": self.end_date,
-#             "created_at": self.created_at.isoformat() if self.created_at else None,
-#             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-#         }
-=======
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "user_id": self.user_id,
-            "category": self.category,
-            "amount": self.amount,
-            "start_date": self.start_date,
-            "frequency": self.frequency,
-            "active": self.active,
-            "end_date": self.end_date,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
->>>>>>> upstream/main
 
 # ---------------- WEEKLY DIGEST (Scheduled AI) ----------------
 class DigestPreference(db.Model):

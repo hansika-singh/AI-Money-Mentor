@@ -23,6 +23,8 @@ from flask_login import (
     login_required
 )
 
+from flask_mail import Mail, Message
+
 from werkzeug.security import (
     generate_password_hash,
     check_password_hash
@@ -41,9 +43,6 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
         "  Obtain a free key at: https://console.groq.com/\n",
         file=sys.stderr,
     )
-
-    sys.exit(1)
-
     client = None
 else:
     client = Groq(api_key=GROQ_API_KEY)
