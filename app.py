@@ -23,6 +23,8 @@ from flask_login import (
     login_required
 )
 
+from flask_mail import Mail, Message
+
 from werkzeug.security import (
     generate_password_hash,
     check_password_hash
@@ -43,14 +45,13 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
         "  Obtain a free key at: https://console.groq.com/\n",
         file=sys.stderr,
     )
-    sys.exit(1)
     client = None
 else:
     client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------- IMPORT UTILS ----------------
 from utils.sip import calculate_sip, calculate_goal_sip
-from utils.tax import calculate_tax
+from utils.tax import calculate_tax, tax_optimization_module
 from utils.pdf_parser import extract_income
 from utils.money_score import calculate_money_score
 from utils.multi_agent import run_multi_agent
@@ -1279,6 +1280,56 @@ def money_score():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+# ---------------- CREDIT HEALTH FEEDBACK ----------------
+@app.route("/credit-feedback", methods=["POST"])
+def credit_feedback():
+
+    try:
+        data = request.json or {}
+
+        score = data.get("score", 0)
+        dti = data.get("dti", 0)
+        utilization = data.get("utilization", 0)
+        payment = data.get("payment", 0)
+
+        advice = []
+
+        if utilization > 30:
+            advice.append(
+                "Reduce credit utilization below 30%."
+            )
+
+        if dti > 40:
+            advice.append(
+                "Lower your debt-to-income ratio."
+            )
+
+        if payment < 90:
+            advice.append(
+                "Maintain timely payments to improve credit history."
+            )
+
+        if score >= 750:
+            advice.append(
+                "Excellent credit profile. Maintain your habits."
+            )
+
+        if not advice:
+            advice.append(
+                "Keep monitoring your credit health regularly."
+            )
+
+        return jsonify({
+            "message": " ".join(advice)
+        })
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 400
+
+
 # ---------------- EXPORT FINANCIAL REPORT ----------------
 EXPORT_FIELDS = ["income", "expenses", "savings", "investments", "debt", "emergency", "tax", "money_score", "sip_projection"]
 EXPORT_FIELD_LABELS = {"income": "Income", "expenses": "Expenses", "savings": "Savings", "investments": "Investments", "debt": "Debt", "emergency": "Emergency Fund", "tax": "Tax Estimate", "money_score": "Money Score", "sip_projection": "SIP Projection"}
@@ -1327,17 +1378,29 @@ def export_pdf():
         return jsonify({"error": str(e)}), 400
 
 # ---------------- EXPENSE TRACKER ----------------
+@app.route("/expense", methods=["GET"])
+def expense_page():
+    """Render the standalone expense tracker page."""
+    return render_template("expense.html", active_page="expense")
+ 
+ 
 @app.route("/add_expense", methods=["POST"])
 @login_required
 def add_expense():
+    """
+    POST /add_expense
+    Body: { category: str, amount: float, date: "YYYY-MM-DD" }
+    Returns: { status: "success" } or { error: str }
+    """
     try:
         data = request.json or {}
         if not isinstance(data, dict):
-            raise ValidationError("Request body must be a JSON object")
+            raise ValidationError("Request body must be a JSON object.")
+ 
         category = validate_string(data.get("category"), "category")
-        amount = validate_float(data.get("amount"), "amount", min_val=0.01)
-        date = validate_string(data.get("date"), "date")
-
+        amount   = validate_float(data.get("amount"),   "amount",   min_val=0.01)
+        date     = validate_string(data.get("date"),    "date")
+ 
         expense = Expense(
             category=category,
             amount=amount,
@@ -1348,86 +1411,229 @@ def add_expense():
 
         db.session.add(expense)
         db.session.commit()
-        
-        ym = expense.date[:7] if len(expense.date) >= 7 else None
-        run_threshold_checks(expense.user_id, expense.category, ym)
-        
-        return jsonify({"status": "success"})
-
+ 
+        # Check budget thresholds after every new expense
+        ym = date[:7] if len(date) >= 7 else None
+        run_threshold_checks(current_user.id, category, ym)
+ 
+        return jsonify({"status": "success", "id": expense.id})
+ 
     except ValidationError as e:
         raise e
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+        app.logger.error(f"[add_expense] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
 @app.route("/expense/<int:expense_id>", methods=["PUT", "DELETE"])
 @login_required
 def expense_detail(expense_id):
+    """
+    DELETE /expense/<id>   — remove an expense
+    PUT    /expense/<id>   — update category / amount / date
+    """
     try:
-        expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first()
+        expense = Expense.query.filter_by(
+            id=expense_id, user_id=current_user.id
+        ).first()
+ 
         if not expense:
-            return jsonify({"error": f"Expense with id {expense_id} not found."}), 404
-
+            return jsonify(
+                {"error": f"Expense {expense_id} not found."}
+            ), 404
+ 
         if request.method == "DELETE":
-            category = expense.category
-            ym = expense.date[:7] if len(expense.date) >= 7 else None
-            
             db.session.delete(expense)
             db.session.commit()
-            
-            if ym:
-                run_threshold_checks(expense.user_id, category, ym)
-                
             return jsonify({"status": "success"})
-        else:  # PUT
-            data = request.json or {}
-            if not isinstance(data, dict):
-                raise ValidationError("Request body must be a JSON object")
-            
-            if "category" in data:
-                new_cat = validate_string(data["category"], "category")
-                if new_cat != expense.category:
-                    expense.user_corrected = True
-                    if not expense.original_ai_category:
-                        expense.original_ai_category = expense.category
-                    expense.category = new_cat
-            if "amount" in data:
-                expense.amount = validate_float(data["amount"], "amount", min_val=0.01)
-            if "date" in data:
-                expense.date = validate_string(data["date"], "date")
-                
-            db.session.commit()
-            
-            ym = expense.date[:7] if len(expense.date) >= 7 else None
-            if ym:
-                run_threshold_checks(expense.user_id, expense.category, ym)
-                
-            return jsonify({"status": "success", "expense": expense.to_dict()})
+ 
+        # ── PUT ──────────────────────────────────────────────────────
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object.")
+ 
+        if "category" in data:
+            expense.category = validate_string(data["category"], "category")
+        if "amount" in data:
+            expense.amount = validate_float(
+                data["amount"], "amount", min_val=0.01
+            )
+        if "date" in data:
+            expense.date = validate_string(data["date"], "date")
+ 
+        db.session.commit()
+        return jsonify({"status": "success", "expense": expense.to_dict()})
+ 
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        app.logger.error(f"[expense_detail] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
+@app.route("/calculate", methods=["GET"])
+@login_required
+def calculate():
+    """
+    GET /calculate
+    Returns total, average, by-category breakdown, and full expense list
+    for the current user.
+    """
+    try:
+        expense_rows = (
+            Expense.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Expense.id.desc())
+            .all()
+        )
+        expense_data = [e.to_dict() for e in expense_rows]
+        result = calculate_expense(expense_data)
+        result["expenses"] = expense_data
+        return jsonify(result)
+ 
+    except Exception as e:
+        app.logger.error(f"[calculate] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
+@app.route("/insights", methods=["GET"])
+@login_required
+def expense_insights():
+    """
+    GET /insights
+    Returns AI-generated HTML insight cards for the current user's expenses.
+    Falls back gracefully when GROQ_API_KEY is not set.
+    """
+    try:
+        expense_rows = (
+            Expense.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Expense.id.desc())
+            .all()
+        )
+        expense_data = [e.to_dict() for e in expense_rows]
+ 
+        # client is None when GROQ_API_KEY is missing —
+        # insights() handles this and returns an offline message
+        result = insights(client, expense_data)
+        return jsonify(result)
+ 
+    except Exception as e:
+        app.logger.error(f"[expense_insights] {e}")
+        return jsonify({
+            "insights": (
+                '<div class="insight-card">'
+                "<h3>Server Error</h3>"
+                "<p>Could not generate insights right now. "
+                "Please try again later.</p>"
+                "</div>"
+            )
+        }), 500
+ 
+
+# ---------------- RECURRING EXPENSES ----------------
+def _validate_frequency(freq: str):
+    freq = (freq or "").strip().lower()
+    if freq not in ("monthly", "weekly", "yearly"):
+        raise ValidationError("frequency must be one of: monthly, weekly, yearly")
+    return freq
+
+
+def _get_period_key(frequency: str, d):
+    if frequency == "monthly":
+        return d.strftime("%Y-%m")
+    if frequency == "weekly":
+        iso_year, iso_week, _ = d.isocalendar()
+        return f"{iso_year}-W{iso_week:02d}"
+    # yearly
+    return d.strftime("%Y")
+
+
+@app.route("/recurring-expense", methods=["POST"])
+@login_required
+def create_recurring_expense():
+    """
+    Create a recurring expense template.
+    """
+    try:
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+
+        category = validate_string(data.get("category"), "category")
+        amount = validate_float(data.get("amount"), "amount", min_val=0.01)
+        start_date = validate_string(data.get("start_date"), "start_date")  # YYYY-MM-DD
+        frequency = _validate_frequency(data.get("frequency"))
+
+        active = data.get("active", True)
+        if not isinstance(active, bool):
+            raise ValidationError("active must be a boolean")
+
+        end_date = data.get("end_date", None)
+        if end_date is not None:
+            end_date = validate_string(end_date, "end_date")  # YYYY-MM-DD
+
+        # Validate date format (YYYY-MM-DD)
+        import datetime
+        try:
+            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+        except Exception:
+            raise ValidationError("start_date must be in YYYY-MM-DD format")
+
+        if end_date:
+            try:
+                end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+            except Exception:
+                raise ValidationError("end_date must be in YYYY-MM-DD format")
+            if end_dt < start_dt:
+                raise ValidationError("end_date cannot be before start_date")
+
+        rexp = RecurringExpense(
+            user_id=current_user.id,
+            category=category,
+            amount=amount,
+            start_date=start_date,
+            frequency=frequency,
+            active=active,
+            end_date=end_date,
+        )
+        db.session.add(rexp)
+        db.session.commit()
+        return jsonify(rexp.to_dict()), 201
+
     except ValidationError as e:
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route("/calculate", methods=["GET"])
-@login_required
-def calculate():
-    expense_data = [e.to_dict() for e in Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id).all()]
-    result = calculate_expense(expense_data)
-    result["expenses"] = expense_data
-    return jsonify(result)
 
-@app.route("/insights", methods=["GET"])
+@app.route("/recurring-expense", methods=["GET"])
 @login_required
-def expense_insights():
-    expense_data = [e.to_dict() for e in Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id).all()]
-    if not client:
-        totals = calculate_expense(expense_data)
-        return jsonify({
-            "insights": "<div class=\"insight-card\"><h3>AI Insights Offline</h3><p>Personalized AI savings suggestions are currently offline because the GROQ_API_KEY is not configured on the server.</p></div>",
-            "summary": totals
-        })
+def list_recurring_expenses():
+    try:
+        items = RecurringExpense.query.filter_by(user_id=current_user.id).order_by(RecurringExpense.id.desc()).all()
+        return jsonify([i.to_dict() for i in items])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-    result = insights(client, expense_data)
-    return jsonify(result)
+
+@app.route("/recurring-expense/<int:recurring_id>", methods=["DELETE"])
+@login_required
+def disable_recurring_expense(recurring_id):
+    """
+    Disable a recurring expense template.
+    """
+    try:
+        item = RecurringExpense.query.filter_by(id=recurring_id, user_id=current_user.id).first()
+        if not item:
+            return jsonify({"error": "Recurring expense not found"}), 404
+        if item.user_id != current_user.id:
+            return jsonify({"error": "Unauthorized"}), 403
+        item.active = False
+        db.session.commit()
+        return jsonify({"status": "success", "id": recurring_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 # ---------------- NET WORTH TRACKER ----------------
 @app.route("/net-worth", methods=["GET", "POST"])
@@ -1523,172 +1729,7 @@ def delete_item():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-# ---------------- VOICE EXPENSE PARSER ----------------
-@app.route('/api/parse-expense-text', methods=['POST'])
-def parse_expense_text():
-    """Parse spoken text to extract amount, category, and merchant"""
-    try:
-        data = request.json
-        text = data.get('text', '').strip()
-        
-        if not text:
-            return jsonify({'success': False, 'error': 'No text provided'}), 400
-        
-        prompt = f"""
-        You are a financial data extractor. Extract the following details from this spoken text:
-        "{text}"
-        
-        Return ONLY valid JSON in this exact format:
-        {{
-            "amount": number or null,
-            "category": string or null,
-            "merchant": string or null
-        }}
-        
-        Categories must be one of: Food, Rent, Travel, Shopping, Utilities, Entertainment, Healthcare, Other.
-        
-        Examples:
-        - "Uber ride to airport 450 rupees" → {{"amount": 450, "category": "Travel", "merchant": "Uber"}}
-        - "Bought groceries for 1200 at Big Basket" → {{"amount": 1200, "category": "Food", "merchant": "Big Basket"}}
-        - "Paid electricity bill 800 rupees" → {{"amount": 800, "category": "Utilities", "merchant": null}}
-        """
-        
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are a financial data extractor. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_tokens=100
-        )
-        
-        result_text = response.choices[0].message.content.strip()
-        
-        import json
-        try:
-            start = result_text.find('{')
-            end = result_text.rfind('}') + 1
-            if start != -1 and end > start:
-                json_str = result_text[start:end]
-                parsed = json.loads(json_str)
-                
-                result = {
-                    'success': True,
-                    'amount': parsed.get('amount'),
-                    'category': parsed.get('category'),
-                    'merchant': parsed.get('merchant')
-                }
-                
-                valid_categories = ['Food', 'Rent', 'Travel', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Other']
-                if result['category'] and result['category'] not in valid_categories:
-                    result['category'] = 'Other'
-                
-                return jsonify(result)
-            else:
-                raise ValueError("No JSON found in response")
-                
-        except Exception as e:
-            print(f"JSON parse error: {e}")
-            return jsonify({'success': False, 'error': 'Failed to parse AI response'}), 500
-        
-    except Exception as e:
-        print(f"Voice parse error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ---------------- RECURRING EXPENSES HELPER ----------------
-def _validate_frequency(freq: str):
-    freq = (freq or "").strip().lower()
-    if freq not in ("monthly", "weekly", "yearly"):
-        raise ValidationError("frequency must be one of: monthly, weekly, yearly")
-    return freq
-
-def _get_period_key(frequency: str, d):
-    if frequency == "monthly":
-        return d.strftime("%Y-%m")
-    if frequency == "weekly":
-        iso_year, iso_week, _ = d.isocalendar()
-        return f"{iso_year}-W{iso_week:02d}"
-    return d.strftime("%Y")
-
-@app.route("/recurring-expense", methods=["POST"])
-@login_required
-def create_recurring_expense():
-    try:
-        data = request.json or {}
-        if not isinstance(data, dict):
-            raise ValidationError("Request body must be a JSON object")
-
-        category = validate_string(data.get("category"), "category")
-        amount = validate_float(data.get("amount"), "amount", min_val=0.01)
-        start_date = validate_string(data.get("start_date"), "start_date")
-        frequency = _validate_frequency(data.get("frequency"))
-
-        active = data.get("active", True)
-        if not isinstance(active, bool):
-            raise ValidationError("active must be a boolean")
-
-        end_date = data.get("end_date", None)
-        if end_date is not None:
-            end_date = validate_string(end_date, "end_date")
-
-        import datetime
-        try:
-            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
-        except Exception:
-            raise ValidationError("start_date must be in YYYY-MM-DD format")
-
-        if end_date:
-            try:
-                end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
-            except Exception:
-                raise ValidationError("end_date must be in YYYY-MM-DD format")
-            if end_dt < start_dt:
-                raise ValidationError("end_date cannot be before start_date")
-
-        rexp = RecurringExpense(
-            user_id=current_user.id,
-            category=category,
-            amount=amount,
-            start_date=start_date,
-            frequency=frequency,
-            active=active,
-            end_date=end_date,
-        )
-        db.session.add(rexp)
-        db.session.commit()
-        return jsonify(rexp.to_dict()), 201
-
-    except ValidationError as e:
-        raise e
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/recurring-expense", methods=["GET"])
-@login_required
-def list_recurring_expenses():
-    try:
-        items = RecurringExpense.query.filter_by(user_id=current_user.id).order_by(RecurringExpense.id.desc()).all()
-        return jsonify([i.to_dict() for i in items])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/recurring-expense/<int:recurring_id>", methods=["DELETE"])
-@login_required
-def disable_recurring_expense(recurring_id):
-    try:
-        item = RecurringExpense.query.filter_by(id=recurring_id, user_id=current_user.id).first()
-        if not item:
-            return jsonify({"error": "Recurring expense not found"}), 404
-        if item.user_id != current_user.id:
-            return jsonify({"error": "Unauthorized"}), 403
-        item.active = False
-        db.session.commit()
-        return jsonify({"status": "success", "id": recurring_id})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-# ---------------- BUDGET THRESHOLD CHECKS ----------------
+# Helper to check budget thresholds
 def run_threshold_checks(user_id, category, year_month=None):
     if not year_month:
         import datetime
@@ -2446,18 +2487,19 @@ def add_portfolio_holding():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-@app.route("/portfolio/delete/<int:item_id>", methods=["DELETE"])
-@login_required
-def delete_portfolio_holding(item_id):
-    try:
-        holding = db.session.get(Portfolio, item_id)
-        if not holding or holding.user_id != current_user.id:
-            return jsonify({"error": "Holding not found or unauthorized"}), 404
-        db.session.delete(holding)
-        db.session.commit()
-        return jsonify({"success": True, "message": "Successfully deleted holding"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+# Tax Optimization Module
+@app.route("/tax-optimize", methods=["POST"])
+def tax_optimize():
+    data = request.get_json()
+    income = data.get("income", 0)
+    expenses = data.get("expenses", {})
+    investments = data.get("investments", {})
+    if not income or income <= 0:
+        return jsonify({"error": "Please provide a valid income."}), 400
+    result = tax_optimization_module(income, expenses, investments)
+    return jsonify(result)
+
+
 
 # ---------------- ADDITIONAL SCHEDULERS ----------------
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
@@ -2470,4 +2512,9 @@ if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
+
     app.run(debug=debug_mode)
+
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+

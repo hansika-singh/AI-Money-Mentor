@@ -1,10 +1,11 @@
 flask==3.1.3
 yfinance==1.4.1
-groq==1.4.0
+groq==1.0.0
 pdfplumber==0.11.9
-python-dotenv==1.2.2
+python-dotenv==1.2.1
 flask-sqlalchemy==3.1.1
 apscheduler==3.11.2
 fpdf2==2.8.7
 flask-login
 werkzeug
+flask-mail==0.10.0

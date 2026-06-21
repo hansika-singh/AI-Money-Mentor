@@ -180,8 +180,10 @@
       }
       
     } catch (err) {
-      console.error(err);
-    }
+    console.error(err);
+    document.getElementById("budgetAdvice").innerHTML = 
+      "⚠️ Could not load budget data. Please refresh the page.";
+  }
   }
 
   async function loadAlertsFeed() {
@@ -210,8 +212,12 @@
         `;
       });
     } catch (err) {
-      console.error(err);
-    }
+    console.error(err);
+    document.getElementById("alertsFeed").innerHTML = 
+      `<div style="text-align:center; padding:20px; color:var(--red); font-style:italic;">
+        ⚠️ Could not load alerts. Please refresh the page.
+      </div>`;
+  }
   }
 
   async function triggerManualChecks() {

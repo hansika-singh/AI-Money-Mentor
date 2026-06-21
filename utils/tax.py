@@ -308,3 +308,110 @@ def simulate_tax_scenarios(
         },
     }
 
+
+from typing import Dict, Any
+
+from typing import Dict, Any
+
+
+def tax_optimization_module(income: float, expenses: Dict[str, float], investments: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Note: this module applies 80C/80D/HRA-style deductions in a single
+    Old-Regime-style calculation. It does NOT compare against New Regime tax
+    (which is flat regardless of these deductions, per calculate_tax()).
+    """
+
+    SLABS = [
+        (0, 300000, 0.00),
+        (300000, 700000, 0.05),
+        (700000, 1000000, 0.10),
+        (1000000, 1200000, 0.15),
+        (1200000, 1500000, 0.20),
+        (1500000, float('inf'), 0.30),
+    ]
+
+    CESS_RATE = 0.04
+    REBATE_THRESHOLD = 700000
+    STANDARD_DEDUCTION = 75000
+
+    DEDUCTION_RULES = {
+        "80C": {"cap": 150000, "description": "investments in PPF, ELSS, life insurance, etc."},
+        "80D": {"cap": 25000, "description": "medical insurance premium"},
+        "HRA": {"cap": None, "description": "House Rent Allowance exemption"},
+    }
+
+    deductible_expenses = sum(expenses.values()) if expenses else 0.0
+    gross_taxable_income = max(0.0, income - deductible_expenses)
+
+    current_deductions = STANDARD_DEDUCTION
+    for section, rule in DEDUCTION_RULES.items():
+        invested = investments.get(section, 0)
+        cap = rule["cap"]
+        current_deductions += min(invested, cap) if cap is not None else invested
+
+    current_taxable_income = max(0.0, gross_taxable_income - current_deductions)
+
+    tax = 0.0
+    for lower, upper, rate in SLABS:
+        if current_taxable_income > lower:
+            tax += (min(current_taxable_income, upper) - lower) * rate
+        else:
+            break
+
+    current_tax = 0.0 if current_taxable_income <= REBATE_THRESHOLD else round(tax * (1 + CESS_RATE), 2)
+
+    marginal_rate = 0.0
+    for lower, upper, rate in SLABS:
+        if lower < current_taxable_income <= upper:
+            marginal_rate = rate
+
+    max_deductions = STANDARD_DEDUCTION
+    for section, rule in DEDUCTION_RULES.items():
+        cap = rule["cap"]
+        max_deductions += cap if cap is not None else investments.get(section, 0)
+
+    optimized_taxable_income = max(0.0, gross_taxable_income - max_deductions)
+
+    tax_opt = 0.0
+    for lower, upper, rate in SLABS:
+        if optimized_taxable_income > lower:
+            tax_opt += (min(optimized_taxable_income, upper) - lower) * rate
+        else:
+            break
+
+    optimized_tax = 0.0 if optimized_taxable_income <= REBATE_THRESHOLD else round(tax_opt * (1 + CESS_RATE), 2)
+
+    potential_savings = round(current_tax - optimized_tax, 2)
+
+    suggestions = {}
+    for section, rule in DEDUCTION_RULES.items():
+        cap = rule["cap"]
+        if cap is None:
+            continue
+        invested = investments.get(section, 0)
+        gap = cap - invested
+        if gap > 0:
+            estimated_savings = round(gap * marginal_rate, 2)
+            if estimated_savings > 0:
+                suggestions[section] = (
+                    f"Invest Rs. {gap:,.0f} more under {section} "
+                    f"({rule['description']}) to save up to Rs. {estimated_savings:,.0f} tax."
+                )
+
+    if not suggestions:
+        suggestions["info"] = "Your current deductions are already well optimized for this income level."
+
+    regime_note = None
+    if potential_savings > 0:
+        regime_note = (
+            "These savings assume filing under the Old Tax Regime, since 80C/80D/HRA "
+            "deductions don't apply under the New Regime."
+        )
+
+    return {
+        "current_tax": current_tax,
+        "optimized_tax": optimized_tax,
+        "potential_savings": potential_savings,
+        "suggestions": suggestions,
+        "regime_note": regime_note,
+    }

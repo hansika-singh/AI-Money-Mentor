@@ -15,12 +15,27 @@
         <div><label>Investments (₹)</label><input type="number" required min="0" id="s_invest" placeholder="e.g. 500000"></div>
         <div><label>Total Debt (₹)</label><input type="number" required min="0" id="s_debt" placeholder="e.g. 100000"></div>
         <div><label>Emergency Fund (₹)</label><input type="number" required min="0" id="s_emergency" placeholder="e.g. 240000"></div>
+        <div>
+<label>Credit Utilization (%)</label>
+<input type="number" min="0" max="100" id="s_utilization"
+placeholder="e.g. 25">
+</div>
+
+<div>
+<label>Payment Timeliness (%)</label>
+<input type="number" min="0" max="100" id="s_payment"
+placeholder="e.g. 95">
+</div>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="btn btn-gold" style="flex:1" onclick="calcScore()" id="scoreBtn">Calculate Money Score</button>
         <button class="btn btn-ghost" style="flex:1" onclick="resetScore()" id="scoreResetBtn">Reset</button>
       </div>
       <div id="scoreResult" class="result-box"></div>
+      <div id="creditFeedback"
+class="result-box"
+style="margin-top:15px">
+</div>
       <div id="export-section" style="display:none; gap:10px; margin-top:14px;">
         <button class="btn btn-ghost" style="flex:1" onclick="exportReport('csv')" id="exportCsvBtn">⬇️ Download CSV</button>
         <button class="btn btn-ghost" style="flex:1" onclick="exportReport('pdf')" id="exportPdfBtn">📄 Download PDF</button>
@@ -47,8 +62,23 @@
     const investRaw = document.getElementById('s_invest').value;
     const debtRaw = document.getElementById('s_debt').value;
     const emergencyRaw = document.getElementById('s_emergency').value;
+    const utilizationRaw =
+document.getElementById('s_utilization').value;
 
-    if (!incomeRaw || !expensesRaw || !savingsRaw || !investRaw || !debtRaw || !emergencyRaw) {
+const paymentRaw =
+document.getElementById('s_payment').value;
+
+
+    if (
+!incomeRaw ||
+!expensesRaw ||
+!savingsRaw ||
+!investRaw ||
+!debtRaw ||
+!emergencyRaw ||
+!utilizationRaw ||
+!paymentRaw
+){
       showResult('scoreResult', '⚠ Please fill in all fields.');
       return;
     }
@@ -58,7 +88,55 @@
     const invest = parseFloat(investRaw);
     const debt = parseFloat(debtRaw);
     const emergency = parseFloat(emergencyRaw);
+const utilization = parseFloat(utilizationRaw);
+const payment = parseFloat(paymentRaw);
+    const dti =
+income > 0 ? (debt / income) * 100 : 0;
 
+
+let creditScore = 300;
+
+
+// Payment history (35%)
+if(payment >= 95){
+ creditScore += 200;
+}
+else if(payment >=80){
+ creditScore += 120;
+}
+
+
+// Credit utilization (30%)
+if(utilization <=30){
+ creditScore +=150;
+}
+else if(utilization <=50){
+ creditScore +=80;
+}
+
+
+// DTI
+if(dti <=40){
+ creditScore +=100;
+}
+
+
+creditScore =
+Math.min(850, creditScore);
+const feedback = await apiFetch('/credit-feedback',{
+    score: creditScore,
+    dti: dti,
+    utilization: utilization,
+    payment: payment
+});
+
+document.getElementById("creditFeedback").innerHTML =
+`
+<b>AI Credit Advice</b>
+<br>
+${feedback.message}
+`;
+   
     
     if ([income, expenses, savings, invest, debt, emergency].some(val=>val<0)){
       showResult('scoreResult','Inputs cannot be negative.');
@@ -107,6 +185,20 @@
               <div class="score-text-overlay">
                 <div style="font-family:'Outfit',sans-serif;font-size:42px;font-weight:800;color:${color}">${data.score}</div>
                 <div style="font-size:11px;font-weight:600;color:var(--text);margin-top:-2px">${data.status}</div>
+                <div style="margin-top:20px;padding-top:15px;border-top:1px solid var(--border)">
+    <div style="font-size:12px;color:var(--muted)">
+        Credit Health Score
+    </div>
+
+    <div style="font-size:30px;font-weight:800;color:#14c8bf">
+        ${creditScore}/850
+    </div>
+
+    <div style="font-size:12px;color:var(--muted)">
+        DTI Ratio: ${dti.toFixed(2)}% |
+        Utilization: ${utilization}%
+    </div>
+</div>
               </div>
             </div>
           </div>
