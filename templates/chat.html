@@ -41,7 +41,8 @@ list_recurring_expenses
   // ─── localStorage helpers ─────────────────────────────────────────────────
   function saveHistory() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(chatHistory));
+       const trimmed = chatHistory.slice(-50);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
     } catch (e) {
       console.warn('Could not save chat history to localStorage:', e);
     }
