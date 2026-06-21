@@ -1083,17 +1083,29 @@ def export_pdf():
         return jsonify({"error": str(e)}), 400
 
 # ---------------- EXPENSE TRACKER ----------------
+@app.route("/expense", methods=["GET"])
+def expense_page():
+    """Render the standalone expense tracker page."""
+    return render_template("expense.html", active_page="expense")
+ 
+ 
 @app.route("/add_expense", methods=["POST"])
 @login_required
 def add_expense():
+    """
+    POST /add_expense
+    Body: { category: str, amount: float, date: "YYYY-MM-DD" }
+    Returns: { status: "success" } or { error: str }
+    """
     try:
         data = request.json or {}
         if not isinstance(data, dict):
-            raise ValidationError("Request body must be a JSON object")
+            raise ValidationError("Request body must be a JSON object.")
+ 
         category = validate_string(data.get("category"), "category")
-        amount = validate_float(data.get("amount"), "amount", min_val=0.01)
-        date = validate_string(data.get("date"), "date")
-
+        amount   = validate_float(data.get("amount"),   "amount",   min_val=0.01)
+        date     = validate_string(data.get("date"),    "date")
+ 
         expense = Expense(
             category=category,
             amount=amount,
@@ -1102,89 +1114,125 @@ def add_expense():
         )
         db.session.add(expense)
         db.session.commit()
-        
-        # Check thresholds
-        ym = expense.date[:7] if len(expense.date) >= 7 else None
-        run_threshold_checks(expense.user_id, expense.category, ym)
-        
-        return jsonify({"status": "success"})
-
+ 
+        # Check budget thresholds after every new expense
+        ym = date[:7] if len(date) >= 7 else None
+        run_threshold_checks(current_user.id, category, ym)
+ 
+        return jsonify({"status": "success", "id": expense.id})
+ 
     except ValidationError as e:
         raise e
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+        app.logger.error(f"[add_expense] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
 @app.route("/expense/<int:expense_id>", methods=["PUT", "DELETE"])
 @login_required
 def expense_detail(expense_id):
+    """
+    DELETE /expense/<id>   — remove an expense
+    PUT    /expense/<id>   — update category / amount / date
+    """
     try:
-        expense = Expense.query.filter_by(id=expense_id, user_id=current_user.id).first()
+        expense = Expense.query.filter_by(
+            id=expense_id, user_id=current_user.id
+        ).first()
+ 
         if not expense:
-            return jsonify({"error": f"Expense with id {expense_id} not found."}), 404
-
+            return jsonify(
+                {"error": f"Expense {expense_id} not found."}
+            ), 404
+ 
         if request.method == "DELETE":
-            category = expense.category
-            ym = expense.date[:7] if len(expense.date) >= 7 else None
-            
             db.session.delete(expense)
             db.session.commit()
-            
-            if ym:
-                run_threshold_checks(expense.user_id, category, ym)
-                
             return jsonify({"status": "success"})
-        else:  # PUT
-            data = request.json or {}
-            if not isinstance(data, dict):
-                raise ValidationError("Request body must be a JSON object")
-            
-            if "category" in data:
-                new_cat = validate_string(data["category"], "category")
-                if new_cat != expense.category:
-                    expense.user_corrected = True
-                    if not expense.original_ai_category:
-                        expense.original_ai_category = expense.category
-                    expense.category = new_cat
-            if "amount" in data:
-                expense.amount = validate_float(data["amount"], "amount", min_val=0.01)
-            if "date" in data:
-                expense.date = validate_string(data["date"], "date")
-                
-            db.session.commit()
-            
-            ym = expense.date[:7] if len(expense.date) >= 7 else None
-            if ym:
-                run_threshold_checks(expense.user_id, expense.category, ym)
-                
-            return jsonify({"status": "success", "expense": expense.to_dict()})
+ 
+        # ── PUT ──────────────────────────────────────────────────────
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object.")
+ 
+        if "category" in data:
+            expense.category = validate_string(data["category"], "category")
+        if "amount" in data:
+            expense.amount = validate_float(
+                data["amount"], "amount", min_val=0.01
+            )
+        if "date" in data:
+            expense.date = validate_string(data["date"], "date")
+ 
+        db.session.commit()
+        return jsonify({"status": "success", "expense": expense.to_dict()})
+ 
     except ValidationError as e:
         raise e
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+        app.logger.error(f"[expense_detail] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
 @app.route("/calculate", methods=["GET"])
 @login_required
 def calculate():
-    expense_data = [e.to_dict() for e in Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id).all()]
-    result = calculate_expense(expense_data)
-    result["expenses"] = expense_data
-    return jsonify(result)
-
+    """
+    GET /calculate
+    Returns total, average, by-category breakdown, and full expense list
+    for the current user.
+    """
+    try:
+        expense_rows = (
+            Expense.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Expense.id.desc())
+            .all()
+        )
+        expense_data = [e.to_dict() for e in expense_rows]
+        result = calculate_expense(expense_data)
+        result["expenses"] = expense_data
+        return jsonify(result)
+ 
+    except Exception as e:
+        app.logger.error(f"[calculate] {e}")
+        return jsonify({"error": str(e)}), 500
+ 
+ 
 @app.route("/insights", methods=["GET"])
 @login_required
 def expense_insights():
-    expense_data = [e.to_dict() for e in Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id).all()]
-    if not client:
-        # Calculate standard expenses metrics but return fallback AI insights content
-        totals = calculate_expense(expense_data)
+    """
+    GET /insights
+    Returns AI-generated HTML insight cards for the current user's expenses.
+    Falls back gracefully when GROQ_API_KEY is not set.
+    """
+    try:
+        expense_rows = (
+            Expense.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Expense.id.desc())
+            .all()
+        )
+        expense_data = [e.to_dict() for e in expense_rows]
+ 
+        # client is None when GROQ_API_KEY is missing —
+        # insights() handles this and returns an offline message
+        result = insights(client, expense_data)
+        return jsonify(result)
+ 
+    except Exception as e:
+        app.logger.error(f"[expense_insights] {e}")
         return jsonify({
-            "insights": "<div class=\"insight-card\"><h3>AI Insights Offline</h3><p>Personalized AI savings suggestions are currently offline because the GROQ_API_KEY is not configured on the server. Please configure it to enable insights.</p></div>",
-            "summary": totals
-        })
-
-    result = insights(client, expense_data)
-    return jsonify(result)
-
+            "insights": (
+                '<div class="insight-card">'
+                "<h3>Server Error</h3>"
+                "<p>Could not generate insights right now. "
+                "Please try again later.</p>"
+                "</div>"
+            )
+        }), 500
+ 
 
 # ---------------- RECURRING EXPENSES ----------------
 def _validate_frequency(freq: str):
@@ -1398,12 +1446,6 @@ def delete_item():
         raise e
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-
-
-# ---------------- RUN ----------------
-if __name__ == "__main__":
-    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
-    app.run(debug=debug_mode)
 
 # Helper to check budget thresholds
 def run_threshold_checks(user_id, category, year_month=None):
@@ -1871,6 +1913,19 @@ def check_all_recurring_expenses_job():
             db.session.add(exp)
 
         db.session.commit()
+
+from utils.tax import calculate_tax, tax_optimization_module
+
+@app.route("/tax-optimize", methods=["POST"])
+def tax_optimize():
+    data = request.get_json()
+    income = data.get("income", 0)
+    expenses = data.get("expenses", {})
+    investments = data.get("investments", {})
+    if not income or income <= 0:
+        return jsonify({"error": "Please provide a valid income."}), 400
+    result = tax_optimization_module(income, expenses, investments)
+    return jsonify(result)
 
 
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
