@@ -8,7 +8,7 @@ Run with:  pytest tests/test_sip.py -v
 """
 
 import pytest
-from utils.sip import calculate_sip
+from utils.sip import calculate_sip, calculate_stepup_sip
 
 
 class TestCalculateSip:
@@ -68,3 +68,113 @@ class TestCalculateSip:
         expected_discount = result["nominal_value"] / ((1 + m) ** 60)
         assert abs(result["inflation_adjusted_value"] - expected_discount) < 1.0
 
+
+class TestCalculateStepupSip:
+
+    def test_matches_flat_sip_when_stepup_value_is_zero_percentage(self):
+        """A 0% step-up should produce identical numbers to a flat SIP."""
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=5,
+            stepup_type="percentage", stepup_value=0
+        )
+        flat = calculate_sip(monthly=5000, rate=12, years=5)
+        assert result["stepup_nominal_value"] == result["flat_nominal_value"]
+        assert result["flat_nominal_value"] == flat["nominal_value"]
+
+    def test_matches_flat_sip_when_stepup_value_is_zero_amount(self):
+        """A Rs 0 step-up should also produce identical numbers to flat SIP."""
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=5,
+            stepup_type="amount", stepup_value=0
+        )
+        assert result["stepup_nominal_value"] == result["flat_nominal_value"]
+
+    def test_flat_value_matches_existing_calculate_sip(self):
+        """The flat-SIP branch of this function must agree with calculate_sip
+        exactly, since the frontend chart plots both lines and they must be
+        consistent with the standalone /sip endpoint."""
+        result = calculate_stepup_sip(
+            monthly=10000, rate=10, years=10,
+            stepup_type="percentage", stepup_value=10
+        )
+        flat = calculate_sip(monthly=10000, rate=10, years=10)
+        assert result["flat_nominal_value"] == flat["nominal_value"]
+
+    def test_percentage_stepup_grows_more_than_flat(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=10,
+            stepup_type="percentage", stepup_value=10
+        )
+        assert result["stepup_nominal_value"] > result["flat_nominal_value"]
+        assert result["stepup_total_invested"] > result["flat_total_invested"]
+
+    def test_amount_stepup_grows_more_than_flat(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=10,
+            stepup_type="amount", stepup_value=1000
+        )
+        assert result["stepup_nominal_value"] > result["flat_nominal_value"]
+
+    def test_invalid_stepup_type_raises(self):
+        with pytest.raises(ValueError):
+            calculate_stepup_sip(
+                monthly=5000, rate=12, years=5,
+                stepup_type="bogus", stepup_value=10
+            )
+
+    def test_single_year_stepup_equals_flat(self):
+        """With only 1 year, the step-up never triggers (it only applies
+        after month 12), so step-up and flat results must be identical."""
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=1,
+            stepup_type="percentage", stepup_value=15
+        )
+        assert result["stepup_nominal_value"] == result["flat_nominal_value"]
+
+    def test_zero_rate_with_stepup(self):
+        """rate=0 must not divide by zero, and step-up still increases
+        total invested even with no growth."""
+        result = calculate_stepup_sip(
+            monthly=5000, rate=0, years=3,
+            stepup_type="amount", stepup_value=500
+        )
+        assert result["stepup_nominal_value"] == result["stepup_total_invested"]
+        assert result["stepup_total_invested"] > result["flat_total_invested"]
+
+    def test_yearly_breakdown_length_matches_years(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=7,
+            stepup_type="percentage", stepup_value=10
+        )
+        assert len(result["yearly_breakdown"]) == 7
+        assert result["yearly_breakdown"][0]["year"] == 1
+        assert result["yearly_breakdown"][-1]["year"] == 7
+
+    def test_yearly_breakdown_values_are_monotonically_increasing(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=5,
+            stepup_type="percentage", stepup_value=10
+        )
+        values = [y["stepup_value"] for y in result["yearly_breakdown"]]
+        assert values == sorted(values)
+        invested = [y["stepup_invested"] for y in result["yearly_breakdown"]]
+        assert invested == sorted(invested)
+
+    def test_inflation_adjustment_applied(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=10,
+            stepup_type="percentage", stepup_value=10,
+            inflation_rate=6
+        )
+        assert result["inflation_applied"] == 6
+        assert result["stepup_inflation_adjusted_value"] < result["stepup_nominal_value"]
+        assert result["flat_inflation_adjusted_value"] < result["flat_nominal_value"]
+
+    def test_no_inflation_means_adjusted_equals_nominal(self):
+        result = calculate_stepup_sip(
+            monthly=5000, rate=12, years=5,
+            stepup_type="amount", stepup_value=500
+        )
+        assert result["inflation_applied"] == 0.0
+        assert result["stepup_inflation_adjusted_value"] == result["stepup_nominal_value"]
+        assert result["flat_inflation_adjusted_value"] == result["flat_nominal_value"]

@@ -65,7 +65,7 @@ else:
     client = Groq(api_key=GROQ_API_KEY)
 
 # ---------------- IMPORT UTILS ----------------
-from utils.sip import calculate_sip, calculate_goal_sip
+from utils.sip import calculate_sip, calculate_goal_sip, calculate_stepup_sip
 from utils.tax import calculate_tax, tax_optimization_module
 from utils.pdf_parser import extract_income
 from utils.money_score import calculate_money_score
@@ -1754,6 +1754,29 @@ def sip():
             "inflation_applied": result["inflation_applied"],
             "explainability": explainability
         })
+
+    except ValidationError as e:
+        raise e
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    
+@app.route("/sip-stepup", methods=["POST"])
+def sip_stepup():
+    try:
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+        monthly = validate_float(data.get("monthly"), "monthly", min_val=0.0)
+        rate = validate_float(data.get("rate"), "rate", min_val=0.0)
+        years = validate_int(data.get("years"), "years", min_val=1)
+        stepup_type = validate_string(data.get("stepup_type"), "stepup_type")
+        if stepup_type not in ("percentage", "amount"):
+            raise ValidationError("'stepup_type' must be 'percentage' or 'amount'")
+        stepup_value = validate_float(data.get("stepup_value"), "stepup_value", min_val=0.0)
+        inflation = validate_float(data.get("inflation", 0.0), "inflation", min_val=0.0)
+
+        result = calculate_stepup_sip(monthly, rate, years, stepup_type, stepup_value, inflation)
+        return jsonify(result)
 
     except ValidationError as e:
         raise e
