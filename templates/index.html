@@ -1091,6 +1091,19 @@
         radial-gradient(circle at 88% 12%, rgba(212, 168, 67, 0.08), transparent 14%);
     }
 
+
+
+
+  .page-title {
+    font-size: 18px;
+  }
+
+/* ===== GOAL TRACKER STYLING FIX ===== */
+
+    .page-title {
+      font-size: 18px;
+    }
+    
     /* ===== GOAL TRACKER STYLING FIX ===== */
     #goalTracker {
       background: rgba(15, 23, 42, 0.6);
@@ -1319,6 +1332,31 @@
     .safety-indicator.failed {
       color: #e05252;
       background: rgba(224, 82, 82, 0.1);
+
+    }
+
+    /* ===== SAFETY INDICATOR ===== */
+    .safety-indicator {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-top: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .safety-indicator.passed {
+      color: #2ecc8a;
+      background: rgba(46, 204, 138, 0.1);
+    }
+    .safety-indicator.warning {
+      color: #f39c12;
+      background: rgba(243, 156, 18, 0.1);
+    }
+    .safety-indicator.failed {
+      color: #e05252;
+      background: rgba(224, 82, 82, 0.1);
+
     }
   </style>
 </head>
@@ -1354,8 +1392,19 @@
     <div class="nav-item" data-page="networth"><span class="icon">💎</span> Net Worth</div>
     <div class="nav-item" data-page="settings"><span class="icon">⚙️</span> Settings</div>
     <div class="nav-item" data-page="recurring"><span class="icon">🔄</span> Recurring</div>
+
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
+
+
+
+    <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
+    <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
+    <div class="nav-item" data-page="rag-assistant"><span class="icon">🧠</span> RAG Assistant</div>
+
+    <div class="nav-item" data-page="retirement"><span class="icon">📈</span> Retirement Simulator</div>
+
+
   </div>
 
   <!-- ══════════ MAIN ══════════ -->
@@ -1540,6 +1589,10 @@
     <!-- ── SIP CALCULATOR ─────────────── -->
     <div id="sip" class="page">
       <div class="page-title">📈 SIP <span>Calculator</span></div>
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
+        <div class="card">
+
+
 
       <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
         <div class="card">
@@ -1634,6 +1687,7 @@
       </div>
     </div>
 
+
     <!---------- EXPENSE TRACK ------------------->
     <div id="expense" class="page">
       <div class="page-title">💲 Expense Track and Insights</div>
@@ -1660,6 +1714,37 @@
         <button type="submit">Add Expense</button>
       </form>
 
+
+
+<!---------- EXPENSE TRACK------------------->
+<div id="expense" class="page">
+  <div class="page-title">💲 Expense Track and Insights</div>
+  <form id="expenseForm">
+    <select id="category" required>
+      <option value="">Select Category</option>
+      <option value="Food">Food</option>
+      <option value="Rent">Rent</option>
+      <option value="Travel">Travel</option>
+      <option value="Shopping">Shopping</option>
+      <option value="Other">Other</option>
+    </select>
+    
+    <!-- Amount with Microphone Button -->
+    <div style="display: flex; gap: 8px; flex: 1; min-width: 150px;">
+      <input type="number" required min="0" id="amount" placeholder="Amount (₹)" style="flex: 1;">
+      <button type="button" id="voiceBtn" class="btn btn-gold" style="padding: 10px 14px; min-width: 50px; border-radius: 14px;" title="Speak expense">
+        🎤
+      </button>
+    </div>
+    
+    <input type="text" id="merchant" placeholder="Merchant (optional)">
+    <input type="date" id="date" required>
+    <button type="submit">Add Expense</button>
+  </form>
+
+
+
+
       <div class="cards">
         <div class="card" id="totalCard"><h2>Total Spend</h2></div>
         <div class="card" id="avgCard"><h2>Average Expense</h2></div>
@@ -1667,6 +1752,7 @@
 
       <h2>Expense History</h2>
       <table id="expenseTable" style="width: 90%; margin: 20px; border-collapse: collapse; text-align: center;">
+
         <thead>
           <tr>
             <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Date</th>
@@ -1675,6 +1761,17 @@
             <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Amount</th>
           </tr>
         </thead>
+
+
+       <thead>
+  <tr>
+    <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Date</th>
+    <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Category</th>
+    <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Merchant</th>
+    <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Amount</th>
+  </tr>
+</thead>
+
         <tbody id="expenseTableBody"></tbody>
       </table>
 
@@ -1872,6 +1969,7 @@
     /* ══════════════════════════════════════════════
        DASHBOARD CHAT
     ══════════════════════════════════════════════ */
+
     function formatMarkdown(text) {
       if (!text) return '';
       let formatted = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1886,16 +1984,43 @@
       return formatted;
     }
 
+
     function appendMsg(boxId, role, text, safety) {
       const box = document.getElementById(boxId);
       const dashWelcome = document.getElementById('chatWelcome');
       const chatWelcome = document.getElementById('chatPageWelcome');
       
       if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
+
+    function appendMsg(boxId, role, text, safety) {
+      const box = document.getElementById(boxId);
+      const dashWelcome = document.getElementById('chatWelcome');
+      const chatWelcome = document.getElementById('chatPageWelcome');
+      
+      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
+    function appendMsg(boxId, role, text, safety) {
+      const box = document.getElementById(boxId);
+      const dashWelcome = document.getElementById('chatWelcome');
+      const chatWelcome = document.getElementById('chatPageWelcome');
+      
+      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
+    function appendMsg(boxId, role, text, safety) {
+    const box = document.getElementById(boxId);
+    const dashWelcome = document.getElementById('chatWelcome');
+    const chatWelcome = document.getElementById('chatPageWelcome');
+    
+    if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
+
+
         dashWelcome.classList.add('hidden');
       }
       if (chatWelcome && !chatWelcome.classList.contains('hidden')) {
         chatWelcome.classList.add('hidden');
+
       }
       
       const d = document.createElement('div');
@@ -1903,6 +2028,7 @@
       
       let content = text;
       if (role === 'bot') {
+
         content = formatMarkdown(text);
       }
       
@@ -1910,6 +2036,53 @@
       
       // Add safety indicator for bot messages
       if (role === 'bot' && safety) {
+
+        const indicator = document.createElement('div');
+        const passed = safety.passed;
+        const confidence = safety.confidence_level || 'high';
+        
+        let className = 'safety-indicator';
+        let icon = '✅';
+        let indicatorText = 'All safety checks passed';
+        
+        if (!passed) {
+          className += ' failed';
+          icon = '⚠️';
+          indicatorText = 'Response modified for safety';
+        } else if (confidence === 'medium') {
+          className += ' warning';
+          icon = '🟡';
+          indicatorText = 'Medium confidence - Verify details';
+        } else if (confidence === 'low') {
+          className += ' failed';
+          icon = '🔴';
+          indicatorText = 'Low confidence - Verify details';
+        }
+        
+        indicator.className = className;
+        indicator.innerHTML = `${icon} ${indicatorText}`;
+        d.appendChild(indicator);
+      }
+      
+      box.appendChild(d);
+      box.scrollTop = box.scrollHeight;
+
+    }
+    
+    const d = document.createElement('div');
+    d.className = `msg ${role}`;
+    
+    let content = text;
+    if (role === 'bot') {
+
+        content = formatMarkdown(text);
+      }
+      
+      d.innerHTML = `<div class="sender">${role === 'user' ? 'You' : 'AI Advisor'}</div>${content}`;
+      
+      // Add safety indicator for bot messages
+      if (role === 'bot' && safety) {
+
         const indicator = document.createElement('div');
         const passed = safety.passed;
         const confidence = safety.confidence_level || 'high';
@@ -1951,11 +2124,51 @@
       try {
         const data = await apiFetch('/chat', { message: msg });
         appendMsg('dashChat', 'bot', data.reply, data.safety);
+
+      } catch (e) {
+
+
+      } catch (e) {
+
+
       } catch (e) {
         appendMsg('dashChat', 'bot', '⚠ Could not reach server.');
       }
       setLoading('dashBtn', false);
+
+    } catch (e) {
+
+
+        appendMsg('dashChat', 'bot', '⚠ Could not reach server.');
+      }
+      setLoading('dashBtn', false);
     }
+
+
+    setLoading('dashBtn', false);
+}
+
+async function chatSend() {
+    const inp = document.getElementById('chatInput');
+    const msg = inp.value.trim();
+    if (!msg) return;
+    inp.value = '';
+    appendMsg('chatMessages', 'user', msg);
+    setLoading('chatBtn', true);
+    try {
+        const data = await apiFetch('/chat', { message: msg, history: chatHistory });
+        const reply = data.reply || data.error;
+        chatHistory.push({ role: 'user', content: msg });
+        chatHistory.push({ role: 'assistant', content: reply });
+        appendMsg('chatMessages', 'bot', reply, data.safety);
+    } catch (e) {
+        appendMsg('chatMessages', 'bot', '⚠ Could not reach server.');
+
+    }
+    setLoading('chatBtn', false);
+}
+
+
 
     function dashQuick(text) {
       document.getElementById('dashMsg').value = text;
@@ -1966,6 +2179,7 @@
         FULL CHAT PAGE
      ══════════════════════════════════════════════ */
     const chatHistory = [];
+
 
     async function chatSend() {
       const inp = document.getElementById('chatInput');
@@ -1985,6 +2199,7 @@
       }
       setLoading('chatBtn', false);
     }
+
 
     function chatQuick(text) {
       document.getElementById('chatInput').value = text;
@@ -2086,6 +2301,7 @@
         document.getElementById("totalCard").innerHTML = `<h2>Total Spend</h2><p>₹${calcData.Total || 0}</p>`;
         document.getElementById("avgCard").innerHTML = `<h2>Average Expense</h2><p>₹${(calcData.Average || 0).toFixed(2)}</p>`;
 
+
         const tableBody = document.getElementById("expenseTableBody");
         tableBody.innerHTML = "";
 
@@ -2105,6 +2321,52 @@
             </tr>
           `;
         });
+
+
+
+        const tableBody = document.getElementById("expenseTableBody");
+        tableBody.innerHTML = "";
+
+        (calcData.expenses || []).forEach(expense => {
+          const formattedDate = new Date(expense.date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+          });
+
+          tableBody.innerHTML += `
+
+            <tr>
+              <td style="padding:10px;border-bottom:1px solid #222;">${formattedDate}</td>
+              <td style="padding:10px;border-bottom:1px solid #222;">${expense.category}</td>
+              <td style="padding:10px;border-bottom:1px solid #222;">${expense.merchant || '-'}</td>
+              <td style="padding:10px;border-bottom:1px solid #222;">₹${expense.amount}</td>
+            </tr>
+          `;
+
+        });
+
+
+
+                <tr>
+                    <td style="padding:10px;border-bottom:1px solid #222;">
+                        ${formattedDate}
+                    </td>
+                    <td style="padding:10px;border-bottom:1px solid #222;">
+                        ${expense.category}
+                    </td>
+                    <td style="padding:10px;border-bottom:1px solid #222;">
+                        ${expense.merchant || '-'}
+                    </td>
+                    <td style="padding:10px;border-bottom:1px solid #222;">
+                        ₹${expense.amount}
+                    </td>
+                </tr>
+            `;
+
+        });
+
+
 
         const categories = calcData["By Category"] || {};
         const chartCanvas = document.getElementById("expenseChart");
@@ -2202,12 +2464,36 @@
         } else {
           data.liabilities.forEach((item, idx) => {
             liabList.innerHTML += `
+
               <tr style="border-bottom: 1px solid var(--border);">
                 <td style="padding: 8px;">${item.name}</td>
                 <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
                 <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('liability', ${idx})">✖</button></td>
               </tr>
             `;
+
+
+
+                <tr style="border-bottom: 1px solid var(--border);">
+                  <td style="padding: 8px;">${item.name}</td>
+                  <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
+                  <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('liability', ${idx})">✖</button></td>
+                </tr>
+              `;
+
+                            });
+                          }
+                             } catch(error){
+            console.log(error);
+        }
+}
+
+loadExpenses();
+
+let goals = [];
+                          
+
+
           });
         }
       } catch (e) {
@@ -2224,6 +2510,185 @@
     // ══════════════════════════════════════════════
     // THEME TOGGLE
     // ══════════════════════════════════════════════
+
+
+    // ══════════════════════════════════════════════
+    // THEME TOGGLE
+    // ══════════════════════════════════════════════
+
+
+    // ══════════════════════════════════════════════
+    // THEME TOGGLE
+    // ══════════════════════════════════════════════
+
+
+    /* ══════════════════════════════════════════════
+       GOAL TRACKER (global scope)
+    ══════════════════════════════════════════════ */
+    let goals = [];
+
+        function addGoal() {
+
+          const name =
+            document.getElementById("goalName").value.trim();
+
+          const target =
+            parseFloat(
+              document.getElementById("goalTarget").value
+            );
+
+          if (!name || !target) {
+            alert("Enter valid goal details");
+            return;
+          }
+
+          goals.push({
+            name: name,
+            target: target,
+            saved: 0
+          });
+
+          document.getElementById("goalName").value = "";
+          document.getElementById("goalTarget").value = "";
+
+          renderGoals();
+        }
+
+        function addSavings(index) {
+
+          const amount =
+            parseFloat(
+              document.getElementById(
+                `save-${index}`
+              ).value
+            );
+
+          if (!amount || amount <= 0) {
+            alert("Enter valid amount");
+            return;
+          }
+
+          goals[index].saved += amount;
+
+          renderGoals();
+        }
+
+        function deleteGoal(index) {
+
+          goals.splice(index, 1);
+
+          renderGoals();
+        }
+
+        function renderGoals() {
+
+          const container =
+            document.getElementById(
+              "goalContainer"
+            );
+
+          container.innerHTML = "";
+
+          goals.forEach((goal, index) => {
+
+            const percent =
+              Math.min(
+                (goal.saved / goal.target) * 100,
+                100
+              );
+
+            const remaining =
+              Math.max(
+                goal.target - goal.saved,
+                0
+              );
+
+            container.innerHTML += `
+
+<div class="goal-card">
+
+<div class="goal-top">
+
+<div>
+
+<h3>${goal.name}</h3>
+
+<div class="goal-amount">
+₹${goal.saved.toLocaleString()}
+/
+₹${goal.target.toLocaleString()}
+</div>
+
+<div style="margin-top:6px;color:#94a3b8;">
+Remaining:
+₹${remaining.toLocaleString()}
+</div>
+
+</div>
+
+<div style="
+display:flex;
+align-items:center;
+gap:10px;
+">
+
+<div class="goal-percent">
+${percent.toFixed(0)}%
+</div>
+
+<button
+class="delete-btn"
+onclick="deleteGoal(${index})"
+>
+🗑
+</button>
+
+</div>
+
+</div>
+
+<div class="goal-progress">
+
+<div
+class="goal-fill"
+style="width:${percent}%"
+></div>
+
+</div>
+
+<div class="goal-save-row">
+
+<input
+id="save-${index}"
+type="number"
+placeholder="Add savings amount (₹)"
+>
+
+<button
+class="save-btn"
+onclick="addSavings(${index})"
+>
+Add Savings
+</button>
+
+</div>
+
+</div>
+`;
+
+});
+}
+
+          });
+        }
+
+
+    /* ══════════════════════════════════════════════
+       THEME TOGGLE (global scope)
+    ══════════════════════════════════════════════ */
+
+
+
     function toggleTheme() {
       document.body.classList.toggle("light-theme");
       const btn = document.getElementById("themeToggle");
@@ -2250,10 +2715,225 @@
     // ══════════════════════════════════════════════
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+
     if (SpeechRecognition) {
       console.log("✅ Speech Recognition is supported in this browser");
     } else {
       console.warn("⚠️ Speech Recognition is NOT supported in this browser");
+
+
+
+    // ══════════════════════════════════════════════
+    // VOICE-ENABLED EXPENSE INPUT
+    // ══════════════════════════════════════════════
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+
+    if (SpeechRecognition) {
+      console.log("✅ Speech Recognition is supported in this browser");
+    } else {
+      console.warn("⚠️ Speech Recognition is NOT supported in this browser");
+
+    }
+
+    let isListening = false;
+    let recognition = null;
+
+    function initVoiceRecognition() {
+      if (!SpeechRecognition) {
+        alert("❌ Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.");
+        return null;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-IN';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      return recognition;
+    }
+
+    function startVoiceInput() {
+      const voiceBtn = document.getElementById('voiceBtn');
+      if (isListening) {
+        stopVoiceInput();
+        return;
+      }
+      recognition = initVoiceRecognition();
+      if (!recognition) return;
+      isListening = true;
+      voiceBtn.innerHTML = '⏹️';
+      voiceBtn.style.background = 'linear-gradient(135deg, #e05252, #c0392b)';
+      voiceBtn.title = 'Stop listening';
+      const amountInput = document.getElementById('amount');
+      amountInput.placeholder = '🎤 Listening...';
+      amountInput.style.borderColor = '#d4a843';
+      
+      recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        console.log('🎤 Transcript:', transcript);
+        amountInput.placeholder = `🗣️ "${transcript}"`;
+        if (event.results[0].isFinal) {
+          parseVoiceText(transcript);
+          stopVoiceInput();
+        }
+      };
+      
+      recognition.onerror = function(event) {
+        console.error('🎤 Error:', event.error);
+        let errorMsg = '🎤 Error: ';
+        switch(event.error) {
+          case 'not-allowed': errorMsg += 'Microphone permission denied.'; break;
+          case 'no-speech': errorMsg += 'No speech detected.'; break;
+          case 'audio-capture': errorMsg += 'No microphone found.'; break;
+          default: errorMsg += event.error;
+        }
+        amountInput.placeholder = errorMsg;
+        stopVoiceInput();
+      };
+      
+      recognition.onend = function() {
+        if (isListening) {
+          stopVoiceInput();
+        }
+      };
+      
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error('🎤 Error starting:', e);
+        stopVoiceInput();
+      }
+    }
+
+    function stopVoiceInput() {
+      if (recognition) {
+        try {
+          recognition.stop();
+        } catch (e) {}
+      }
+      isListening = false;
+      const voiceBtn = document.getElementById('voiceBtn');
+      voiceBtn.innerHTML = '🎤';
+      voiceBtn.style.background = '';
+      voiceBtn.title = 'Speak expense';
+      const amountInput = document.getElementById('amount');
+      if (amountInput.placeholder === '🎤 Listening...' || amountInput.placeholder.includes('🗣️')) {
+        amountInput.placeholder = 'Amount (₹)';
+      }
+      amountInput.style.borderColor = '';
+    }
+
+    async function parseVoiceText(text) {
+      try {
+        const response = await fetch('/api/parse-expense-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        const data = await response.json();
+        if (data.success) {
+          if (data.amount) { document.getElementById('amount').value = data.amount; }
+          if (data.category) { document.getElementById('category').value = data.category; }
+          if (data.merchant) { document.getElementById('merchant').value = data.merchant; }
+          highlightField('amount');
+          if (data.category) highlightField('category');
+          if (data.merchant) highlightField('merchant');
+          const amountInput = document.getElementById('amount');
+          amountInput.placeholder = '✅ Voice input processed!';
+          setTimeout(() => {
+            amountInput.placeholder = 'Amount (₹)';
+          }, 2000);
+        } else {
+          document.getElementById('merchant').value = text;
+          alert(`🎤 Could not parse: "${text}". Please fill manually.`);
+        }
+      } catch (error) {
+        console.error('🎤 Parse error:', error);
+        document.getElementById('merchant').value = text;
+        alert('🎤 Could not connect to server. Please fill manually.');
+      }
+    }
+
+    function highlightField(fieldId) {
+      const field = document.getElementById(fieldId);
+      const originalBg = field.style.background;
+      const originalBorder = field.style.borderColor;
+      field.style.background = 'rgba(46, 204, 138, 0.15)';
+      field.style.borderColor = '#2ecc8a';
+      field.style.transition = 'all 0.5s ease';
+      setTimeout(() => {
+        field.style.background = originalBg || '';
+        field.style.borderColor = originalBorder || '';
+      }, 2000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const voiceBtn = document.getElementById('voiceBtn');
+      if (voiceBtn) {
+        voiceBtn.addEventListener('click', startVoiceInput);
+      }
+    });
+  </script>
+
+
+                   </script>
+
+ <script>
+
+async function chatSend() {
+
+    const input = document.getElementById("chatInput");
+    const messages = document.getElementById("chatMessages");
+    const welcome = document.getElementById("chatPageWelcome");
+
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    welcome?.classList.add("hidden");
+
+    messages.innerHTML += `
+        <div class="msg user">
+            <div class="sender">YOU</div>
+            ${text}
+        </div>
+    `;
+
+    input.value = "";
+
+    try {
+
+        const res = await fetch("http://127.0.0.1:5000/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: text
+            })
+        });
+
+        const data = await res.json();
+
+        messages.innerHTML += `
+            <div class="msg bot">
+                <div class="sender">AI</div>
+                ${data.reply}
+            </div>
+        `;
+
+    } catch (err) {
+
+        messages.innerHTML += `
+            <div class="msg bot">
+                <div class="sender">AI</div>
+                Backend not connected. /chat endpoint missing.
+            </div>
+        `;
+
+        console.log(err);
+
+
     }
 
     let isListening = false;
@@ -2396,4 +3076,9 @@
   </script>
 
 </body>
+
+
+</body>
+
+
 </html>
