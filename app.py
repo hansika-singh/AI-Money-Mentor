@@ -454,6 +454,230 @@ def voice_test():
             'What is my net worth?'
         ]
     })
+
+  # ---------------- COUPLE FINANCE PLANNER ----------------
+from utils.couple_finance import CoupleFinanceManager
+
+couple_manager = CoupleFinanceManager(client)
+
+@app.route('/couple-planner')
+@login_required
+def couple_planner_page():
+    """Couple Finance Planner Page"""
+    return render_template('couple_planner.html', active_page='couple_planner')
+
+@app.route('/api/couple/status', methods=['GET'])
+@login_required
+def couple_status():
+    """Get couple status"""
+    try:
+        result = couple_manager.get_couple_status(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/invite', methods=['POST'])
+@login_required
+def couple_invite():
+    """Send partner invitation"""
+    try:
+        data = request.json
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        result = couple_manager.create_invitation(current_user.id, email)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/accept', methods=['POST'])
+@login_required
+def couple_accept():
+    """Accept partner invitation"""
+    try:
+        data = request.json
+        token = data.get('token')
+        
+        if not token:
+            return jsonify({'error': 'Token is required'}), 400
+        
+        result = couple_manager.accept_invitation(current_user.id, token)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/unlink', methods=['POST'])
+@login_required
+def couple_unlink():
+    """Unlink couple"""
+    try:
+        result = couple_manager.unlink_couple(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/goals', methods=['GET'])
+@login_required
+def get_goals():
+    """Get shared goals"""
+    try:
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        goals = couple_manager.get_shared_goals(status['couple_id'])
+        return jsonify({'success': True, 'goals': goals})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/goals', methods=['POST'])
+@login_required
+def create_goal():
+    """Create shared goal"""
+    try:
+        data = request.json
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        result = couple_manager.create_shared_goal(status['couple_id'], data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/goals/contribute', methods=['POST'])
+@login_required
+def contribute_goal():
+    """Add contribution to goal"""
+    try:
+        data = request.json
+        goal_id = data.get('goal_id')
+        amount = data.get('amount')
+        note = data.get('note', '')
+        
+        if not goal_id or not amount:
+            return jsonify({'error': 'Goal ID and amount required'}), 400
+        
+        result = couple_manager.add_goal_contribution(current_user.id, goal_id, amount, note)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/expenses', methods=['GET'])
+@login_required
+def get_split_expenses():
+    """Get split expenses"""
+    try:
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        settled = request.args.get('settled')
+        if settled is not None:
+            settled = settled.lower() == 'true'
+        
+        expenses = couple_manager.get_split_expenses(status['couple_id'], settled)
+        summary = couple_manager.get_expense_summary(status['couple_id'])
+        
+        return jsonify({
+            'success': True,
+            'expenses': expenses,
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/expenses', methods=['POST'])
+@login_required
+def create_split_expense():
+    """Create split expense"""
+    try:
+        data = request.json
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        data['payer_id'] = current_user.id
+        result = couple_manager.create_split_expense(status['couple_id'], data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/expenses/settle/<int:expense_id>', methods=['POST'])
+@login_required
+def settle_split_expense(expense_id):
+    """Settle a split expense"""
+    try:
+        result = couple_manager.settle_expense(expense_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/budget', methods=['GET'])
+@login_required
+def get_couple_budget():
+    """Get couple budget"""
+    try:
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        month = request.args.get('month')
+        result = couple_manager.get_budget_status(status['couple_id'], month)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/budget', methods=['POST'])
+@login_required
+def create_couple_budget():
+    """Create couple budget"""
+    try:
+        data = request.json
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        result = couple_manager.create_couple_budget(status['couple_id'], data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/tax', methods=['GET'])
+@login_required
+def get_couple_tax():
+    """Get tax optimization for couple"""
+    try:
+        status = couple_manager.get_couple_status(current_user.id)
+        if not status.get('has_couple'):
+            return jsonify({'error': 'No couple found'}), 400
+        
+        user1_income = request.args.get('user1_income', type=float)
+        user2_income = request.args.get('user2_income', type=float)
+        
+        if not user1_income or not user2_income:
+            return jsonify({'error': 'Both incomes required'}), 400
+        
+        result = couple_manager.get_tax_optimization(
+            status['couple_id'],
+            user1_income,
+            user2_income
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/dashboard', methods=['GET'])
+@login_required
+def couple_dashboard():
+    """Get couple dashboard"""
+    try:
+        result = couple_manager.get_couple_dashboard(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500  
 # ---------------- PORTFOLIO OPTIMIZER ----------------
 
 
