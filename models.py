@@ -114,7 +114,12 @@ class PriceAlert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     symbol = db.Column(db.String(20), nullable=False)
     target_price = db.Column(db.Float, nullable=False)
-    condition = db.Column(db.String(10), default="above")
+    condition = db.Column(db.String(20), default="above")
+    operator_type = db.Column(db.String(20), default="above")
+    cooldown_days = db.Column(db.Integer, default=0)
+    duration_days = db.Column(db.Integer, default=0)
+    last_checked_price = db.Column(db.Float, nullable=True)
+    consecutive_polls_met = db.Column(db.Integer, default=0)
     is_triggered = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -129,6 +134,9 @@ class PriceAlert(db.Model):
             "symbol": self.symbol,
             "target_price": self.target_price,
             "condition": self.condition,
+            "operator_type": self.operator_type,
+            "cooldown_days": self.cooldown_days,
+            "duration_days": self.duration_days,
             "is_triggered": self.is_triggered,
             "last_check_error": self.last_check_error,
             "last_triggered_at": self.last_triggered_at.isoformat() if self.last_triggered_at else None,
@@ -144,9 +152,11 @@ class PriceAlertEvent(db.Model):
 
     # Price snapshot at the moment of trigger
     price = db.Column(db.Float, nullable=False)
+    prev_price = db.Column(db.Float, nullable=True)
+    reason = db.Column(db.String(250), nullable=True)
 
     # Store condition + symbol for easier querying/debugging
-    condition = db.Column(db.String(10), nullable=False)
+    condition = db.Column(db.String(20), nullable=False)
     symbol = db.Column(db.String(20), nullable=False)
 
     def to_dict(self):
@@ -155,6 +165,8 @@ class PriceAlertEvent(db.Model):
             "alert_id": self.alert_id,
             "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
             "price": self.price,
+            "prev_price": self.prev_price,
+            "reason": self.reason,
             "condition": self.condition,
             "symbol": self.symbol,
         }

@@ -1470,12 +1470,26 @@ def create_alert():
 
         symbol = data["symbol"].strip().upper()
         target_price = float(data["target_price"])
-        condition = data.get("condition", "above").strip().lower()
+        operator_type = data.get("operator_type", data.get("condition", "above")).strip().lower()
 
-        if condition not in ("above", "below"):
-            return jsonify({"error": "Invalid condition value"}), 400
+        if operator_type not in ("above", "below", "cross", "cross_above", "cross_below"):
+            return jsonify({"error": "Invalid operator_type value"}), 400
             
-        alert = PriceAlert(symbol=symbol, target_price=target_price, condition=condition, user_id=current_user.id)
+        cooldown_days = int(data.get("cooldown_days", 0))
+        duration_days = int(data.get("duration_days", 0))
+
+        if cooldown_days < 0 or duration_days < 0:
+            return jsonify({"error": "Cooldown and duration must be non-negative"}), 400
+            
+        alert = PriceAlert(
+            symbol=symbol,
+            target_price=target_price,
+            condition=operator_type, # keep condition for backward compatibility
+            operator_type=operator_type,
+            cooldown_days=cooldown_days,
+            duration_days=duration_days,
+            user_id=current_user.id
+        )
         db.session.add(alert)
         db.session.commit()
         return jsonify(alert.to_dict()), 201
@@ -3092,12 +3106,26 @@ def check_all_budgets_job():
 
 def check_stock_alerts_job():
     with app.app_context():
-        alerts = PriceAlert.query.filter_by(is_triggered=False).all()
+        # Get all alerts since we want to check even those where is_triggered is True if cooldown_days is set
+        alerts = PriceAlert.query.all()
 
         max_retries = 3
         base_delay_sec = 1.0
 
         for alert in alerts:
+            # Skip if triggered and cooldown is not enabled
+            if alert.is_triggered and (alert.cooldown_days is None or alert.cooldown_days == 0):
+                continue
+
+            # Check cooldown condition
+            from datetime import datetime as _dt, timedelta
+            now = _dt.utcnow()
+            if alert.last_triggered_at and alert.cooldown_days and alert.cooldown_days > 0:
+                cooldown_until = alert.last_triggered_at + timedelta(days=alert.cooldown_days)
+                if now < cooldown_until:
+                    # Still in cooldown, skip checking
+                    continue
+
             last_err = None
             res = None
 
@@ -3121,27 +3149,65 @@ def check_stock_alerts_job():
 
             if res and isinstance(res, dict) and "price" in res and "error" not in res:
                 current_price = res["price"]
-                triggered = False
-                if alert.condition == "above" and current_price >= alert.target_price:
-                    triggered = True
-                elif alert.condition == "below" and current_price <= alert.target_price:
-                    triggered = True
+                prev_price = alert.last_checked_price
+                operator = alert.operator_type or alert.condition or "above"
 
-                if triggered:
-                    from datetime import datetime as _dt
-                    alert.is_triggered = True
-                    alert.last_triggered_at = _dt.utcnow()
+                condition_met = False
+                if operator == "above":
+                    condition_met = (current_price >= alert.target_price)
+                elif operator == "below":
+                    condition_met = (current_price <= alert.target_price)
+                elif operator == "cross":
+                    if prev_price is not None:
+                        condition_met = (prev_price < alert.target_price and current_price >= alert.target_price) or \
+                                        (prev_price > alert.target_price and current_price <= alert.target_price)
+                elif operator == "cross_above":
+                    if prev_price is not None:
+                        condition_met = (prev_price < alert.target_price and current_price >= alert.target_price)
+                elif operator == "cross_below":
+                    if prev_price is not None:
+                        condition_met = (prev_price > alert.target_price and current_price <= alert.target_price)
 
-                    event = PriceAlertEvent(
-                        alert_id=alert.id,
-                        triggered_at=alert.last_triggered_at,
-                        price=current_price,
-                        condition=alert.condition,
-                        symbol=alert.symbol,
-                    )
-                    db.session.add(event)
+                # Store current price as last checked for next comparison
+                alert.last_checked_price = current_price
 
-                    print(f"\n[STOCK ALERT] Triggered for {alert.symbol}\n", file=sys.stderr)
+                if condition_met:
+                    # Increment consecutive meets
+                    alert.consecutive_polls_met += 1
+                    
+                    required_consecutive = alert.duration_days or 0
+                    trigger_confirmed = False
+                    if required_consecutive == 0:
+                        trigger_confirmed = True
+                    elif alert.consecutive_polls_met >= required_consecutive:
+                        trigger_confirmed = True
+
+                    if trigger_confirmed:
+                        alert.is_triggered = True
+                        alert.last_triggered_at = now
+                        alert.consecutive_polls_met = 0
+
+                        reason_str = f"Condition '{operator}' met at {current_price}."
+                        if prev_price is not None:
+                            reason_str += f" (Previous: {prev_price})"
+                        if required_consecutive > 0:
+                            reason_str += f" Confirmed over {required_consecutive} consecutive checks."
+
+                        event = PriceAlertEvent(
+                            alert_id=alert.id,
+                            triggered_at=now,
+                            price=current_price,
+                            prev_price=prev_price,
+                            reason=reason_str,
+                            condition=alert.condition,
+                            symbol=alert.symbol,
+                        )
+                        db.session.add(event)
+
+                        print(f"\n[STOCK ALERT] Triggered for {alert.symbol}: {reason_str}\n", file=sys.stderr)
+                else:
+                    # Reset counter if condition is not met
+                    alert.consecutive_polls_met = 0
 
         db.session.commit()
 
