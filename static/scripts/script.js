@@ -201,11 +201,25 @@ function appendMsg(boxId, role, text) {
     }
 
     d.innerHTML = `
-        <div class="sender">
-            ${role === 'user' ? 'You' : 'AI Advisor'}
+        <div class="sender" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>${role === 'user' ? 'You' : 'AI Advisor'}</span>
+            ${role === 'bot' ? '<button class="btn-ghost copy-btn" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; cursor: pointer; height: 26px; border-width: 1px; font-family: inherit; display: inline-flex; align-items: center; gap: 4px;">📋 Copy</button>' : ''}
         </div>
         ${content}
     `;
+
+    if (role === 'bot') {
+        const btn = d.querySelector('.copy-btn');
+        if (btn) {
+            btn.onclick = () => {
+                navigator.clipboard.writeText(text).then(() => {
+                    const original = btn.innerHTML;
+                    btn.innerHTML = '✅ Copied!';
+                    setTimeout(() => btn.innerHTML = original, 2000);
+                });
+            };
+        }
+    }
 
     box.appendChild(d);
     box.scrollTop = box.scrollHeight;
@@ -236,7 +250,8 @@ async function chatSend() {
 }
 
 function clearChat() {
-    document.getElementById('chatMessages').innerHTML = '<div class="msg bot">Hello! I\'m your AI financial advisor. How can I help?</div>';
+    document.getElementById('chatMessages').innerHTML = '';
+    appendMsg('chatMessages', 'bot', 'Hello! I\'m your AI financial advisor. How can I help?');
 }
 
 // Other functions (simplified)

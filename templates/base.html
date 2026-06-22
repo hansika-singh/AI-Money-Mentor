@@ -9,6 +9,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>  <!-- For Markdown parsing in AI responses -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script> <!-- For sanitizing AI responses -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles/main.css') }}">
   {% block head %}{% endblock %}
 </head>
@@ -180,6 +182,90 @@
       } catch (e) {
         alert('⚠ Could not export report. Please try again.');
       }
+    }
+
+    function downloadChatAsPDF(boxId) {
+      const liveElement = document.getElementById(boxId);
+      if (!liveElement) return;
+      
+      const liveCard = liveElement.closest('.card') || liveElement;
+      
+      const cloneCard = liveCard.cloneNode(true);
+      cloneCard.removeAttribute('id'); // prevent duplicate IDs in the DOM
+      
+      const inputRow = cloneCard.querySelector('.chat-input-row');
+      if (inputRow) inputRow.style.display = 'none';
+      
+      const copyBtns = cloneCard.querySelectorAll('.copy-btn');
+      copyBtns.forEach(btn => btn.style.display = 'none');
+
+      const cloneElement = cloneCard.querySelector('#' + boxId) || cloneCard;
+      cloneElement.removeAttribute('id');
+
+      // Lock the exact width from the live layout
+      const exactWidth = liveCard.offsetWidth;
+
+      cloneCard.style.width = exactWidth + 'px';
+      cloneCard.style.position = 'fixed';
+      cloneCard.style.left = '0';
+      cloneCard.style.top = '0';
+      cloneCard.style.margin = '0';
+      cloneCard.style.transform = 'none';
+      cloneCard.style.zIndex = '-9999';
+      cloneCard.style.opacity = '0.001';
+      cloneCard.style.pointerEvents = 'none';
+
+      // Expand heights naturally without scrollbars
+      cloneCard.style.height = 'max-content';
+      cloneCard.style.maxHeight = 'none';
+      cloneCard.style.overflow = 'visible';
+
+      cloneElement.style.height = 'max-content';
+      cloneElement.style.maxHeight = 'none';
+      cloneElement.style.overflow = 'visible';
+      cloneElement.style.overflowY = 'visible';
+
+      liveCard.parentNode.appendChild(cloneCard);
+
+      // Give browser time to calculate the expanded clone's height
+      setTimeout(() => {
+          const exactHeight = cloneCard.offsetHeight;
+          
+          domtoimage.toPng(cloneCard, { 
+              bgcolor: getComputedStyle(liveCard).backgroundColor, 
+              width: exactWidth, 
+              height: exactHeight,
+              style: {
+                  opacity: '1', // Restore full opacity inside the generated SVG
+                  position: 'relative', // Remove fixed positioning inside the SVG
+                  zIndex: '1',
+                  left: '0',
+                  top: '0'
+              }
+          })
+              .then(function (dataUrl) {
+                  const { jsPDF } = window.jspdf;
+                  
+                  // Use precise pt-based coordinates to perfectly map 1:1 with the screenshot
+                  const orientation = exactWidth > exactHeight ? 'l' : 'p';
+                  const wPt = exactWidth * 0.75;
+                  const hPt = exactHeight * 0.75;
+                  
+                  const pdf = new jsPDF(orientation, 'pt', [wPt, hPt]);
+                  
+                  pdf.addImage(dataUrl, 'PNG', 0, 0, wPt, hPt);
+                  const dateStr = new Date().toISOString().split('T')[0];
+                  pdf.save(`AI_Money_Mentor_Chat_${dateStr}.pdf`);
+                  
+                  // Clean up the invisible clone instantly
+                  cloneCard.remove();
+              })
+              .catch(function (error) {
+                  console.error('PDF Generation failed!', error);
+                  cloneCard.remove(); // Clean up on error
+                  alert('Failed to generate PDF. Please try again.');
+              });
+      }, 100);
     }
   </script>
   {% block scripts %}{% endblock %}
