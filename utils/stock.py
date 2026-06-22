@@ -133,4 +133,13 @@ def get_stock_dividends(symbol):
     except Exception as e:
         print(f"Error fetching dividends for {symbol}: {e}")
         return []
+#-------stock predictor --------#
+def predict_stock(symbol):
+    symbol = symbol.strip().upper()
+    if not symbol or not re.match(r"^[A-Z0-9.\-_]+$", symbol):
+      return {"error": "Invalid stock symbol format"}
+    
+            
+    
+    
 
