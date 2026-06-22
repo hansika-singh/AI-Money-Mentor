@@ -1395,25 +1395,58 @@ def sip():
         years = validate_int(data.get("years"), "years", min_val=1)
         inflation = validate_float(data.get("inflation", 0.0), "inflation", min_val=0.0)
 
-
         result = calculate_sip(monthly, rate, years, inflation)
+        nominal_fv = result["nominal_value"]
+        inflation_adjusted_value = result["inflation_adjusted_value"]
+
+        # Sensitivity calculations
+        rate_p1 = calculate_sip(monthly, rate + 1.0, years, inflation)
+        rate_m1 = calculate_sip(monthly, max(0.0, rate - 1.0), years, inflation)
+        inf_p1 = calculate_sip(monthly, rate, years, inflation + 1.0)
+        inf_m1 = calculate_sip(monthly, rate, years, max(0.0, inflation - 1.0))
+
+        explainability = {
+            "inputs": {
+                "monthly_investment": monthly,
+                "expected_return_rate": rate,
+                "duration_years": years,
+                "inflation_rate": inflation
+            },
+            "formulas": {
+                "nominal_future_value": "FV = P * (((1 + r)^n - 1) / r) * (1 + r) where P is monthly investment, r is monthly rate (R / 12 / 100), and n is total months (Years * 12).",
+                "inflation_adjusted_value": "FV_adjusted = FV / (1 + i)^n where i is monthly inflation rate (Inflation / 12 / 100) and n is total months."
+            },
+            "sensitivity": {
+                "rate_plus_1_percent": {
+                    "rate": rate + 1.0,
+                    "nominal_value": rate_p1["nominal_value"],
+                    "difference": round(rate_p1["nominal_value"] - nominal_fv, 2)
+                },
+                "rate_minus_1_percent": {
+                    "rate": round(max(0.0, rate - 1.0), 2),
+                    "nominal_value": rate_m1["nominal_value"],
+                    "difference": round(rate_m1["nominal_value"] - nominal_fv, 2)
+                },
+                "inflation_plus_1_percent": {
+                    "inflation": inflation + 1.0,
+                    "inflation_adjusted_value": inf_p1["inflation_adjusted_value"],
+                    "difference": round(inf_p1["inflation_adjusted_value"] - inflation_adjusted_value, 2)
+                },
+                "inflation_minus_1_percent": {
+                    "inflation": round(max(0.0, inflation - 1.0), 2),
+                    "inflation_adjusted_value": inf_m1["inflation_adjusted_value"],
+                    "difference": round(inf_m1["inflation_adjusted_value"] - inflation_adjusted_value, 2)
+                }
+            }
+        }
+
         return jsonify({
-            "future_value": result["nominal_value"],
-            "nominal_value": result["nominal_value"],
-            "inflation_adjusted_value": result["inflation_adjusted_value"],
-            "inflation_applied": result["inflation_applied"]
+            "future_value": nominal_fv,
+            "nominal_value": nominal_fv,
+            "inflation_adjusted_value": inflation_adjusted_value,
+            "inflation_applied": result["inflation_applied"],
+            "explainability": explainability
         })
-
-
-
-        result = calculate_sip(monthly, rate, years, inflation)
-        return jsonify({
-            "future_value": result["nominal_value"],
-            "nominal_value": result["nominal_value"],
-            "inflation_adjusted_value": result["inflation_adjusted_value"],
-            "inflation_applied": result["inflation_applied"]
-        })
-
 
     except ValidationError as e:
         raise e
@@ -1434,7 +1467,54 @@ def goal_planner():
         years = validate_int(data.get("years"), "years", min_val=1)
 
         result = calculate_goal_sip(goal, rate, years)
-        return jsonify(result)
+        monthly_sip = result["monthly_sip"]
+
+        # Sensitivity calculations
+        rate_p1 = calculate_goal_sip(goal, rate + 1.0, years)
+        rate_m1 = calculate_goal_sip(goal, max(0.0, rate - 1.0), years)
+        dur_p1 = calculate_goal_sip(goal, rate, years + 1)
+        dur_m1 = calculate_goal_sip(goal, rate, max(1, years - 1))
+
+        explainability = {
+            "inputs": {
+                "target_goal": goal,
+                "expected_return_rate": rate,
+                "duration_years": years
+            },
+            "formulas": {
+                "required_monthly_sip": "Monthly SIP = Goal * r / (((1 + r)^n - 1) * (1 + r)) where r is monthly rate (R / 12 / 100) and n is total months (Years * 12)."
+            },
+            "sensitivity": {
+                "rate_plus_1_percent": {
+                    "rate": rate + 1.0,
+                    "monthly_sip": rate_p1["monthly_sip"],
+                    "difference": round(rate_p1["monthly_sip"] - monthly_sip, 2)
+                },
+                "rate_minus_1_percent": {
+                    "rate": round(max(0.0, rate - 1.0), 2),
+                    "monthly_sip": rate_m1["monthly_sip"],
+                    "difference": round(rate_m1["monthly_sip"] - monthly_sip, 2)
+                },
+                "duration_plus_1_year": {
+                    "years": years + 1,
+                    "monthly_sip": dur_p1["monthly_sip"],
+                    "difference": round(dur_p1["monthly_sip"] - monthly_sip, 2)
+                },
+                "duration_minus_1_year": {
+                    "years": max(1, years - 1),
+                    "monthly_sip": dur_m1["monthly_sip"],
+                    "difference": round(dur_m1["monthly_sip"] - monthly_sip, 2)
+                }
+            }
+        }
+
+        response_data = {
+            "monthly_sip": monthly_sip,
+            "total_invested": result["total_invested"],
+            "returns": result["returns"],
+            "explainability": explainability
+        }
+        return jsonify(response_data)
 
     except ValidationError as e:
         raise e
@@ -1574,31 +1654,96 @@ def tax():
 
         tax_details = calculate_tax(income, deduction_80c=deduction_80c, deduction_80d=deduction_80d, deduction_hra=deduction_hra, hra_inputs=hra_inputs)
         
-        recommendations = "You are already in the zero-tax bracket! No additional tax-saving investments are required."
-        
+        # Offline explainability fallback
+        offline_explainability = {
+            "assumptions": [
+                "Standard deduction of ₹75,000 for New Regime, ₹50,000 for Old Regime.",
+                "Section 80C deductions are capped at ₹1,50,000.",
+                "Section 80D deductions are capped at ₹25,000.",
+                "HRA exemption is calculated based on rent paid, basic salary, and metro city status."
+            ],
+            "top_drivers": [
+                {"driver": "Section 80C", "delta": f"Reduces taxable income by up to ₹{min(150000.0, float(deduction_80c)):,}.", "reason": "ELSS, PPF, EPF contributions."},
+                {"driver": "Section 80D", "delta": f"Reduces taxable income by up to ₹{min(25000.0, float(deduction_80d)):,}.", "reason": "Health insurance premiums."},
+                {"driver": "Section 10(13A) HRA", "delta": f"Reduces taxable income by HRA exemption of ₹{float(tax_details['deductions_applied']['hra']):,}.", "reason": "Rent paid compared to Basic salary."}
+            ],
+            "recommendations": [
+                "Maximize Section 80C options (PPF, ELSS) if you file under the Old Tax Regime.",
+                "Utilize Section 80D medical insurance deduction to protect family and save tax.",
+                "Compare both Old and New tax regimes; the New regime is preferred unless you have total deductions exceeding ₹3.75 Lakhs."
+            ]
+        }
+
+        # Compute exact lever contributions under Old Regime (Base tax vs deduction applied)
+        tax_no_ded = calculate_tax(income, deduction_80c=0, deduction_80d=0, deduction_hra=0)
+        old_tax_no_ded = tax_no_ded["old_regime"]["total_tax"]
+
+        tax_80c_only = calculate_tax(income, deduction_80c=deduction_80c, deduction_80d=0, deduction_hra=0)
+        saving_80c = max(0.0, old_tax_no_ded - tax_80c_only["old_regime"]["total_tax"])
+
+        tax_80d_only = calculate_tax(income, deduction_80c=0, deduction_80d=deduction_80d, deduction_hra=0)
+        saving_80d = max(0.0, old_tax_no_ded - tax_80d_only["old_regime"]["total_tax"])
+
+        tax_hra_only = calculate_tax(income, deduction_80c=0, deduction_80d=0, deduction_hra=deduction_hra, hra_inputs=hra_inputs)
+        saving_hra = max(0.0, old_tax_no_ded - tax_hra_only["old_regime"]["total_tax"])
+
+        lever_contributions = {
+            "80c": round(saving_80c, 2),
+            "80d": round(saving_80d, 2),
+            "hra": round(saving_hra, 2)
+        }
+
         recommended_regime = tax_details.get("recommended", "New Regime")
         regime_key = "new_regime" if recommended_regime == "New Regime" else "old_regime"
         total_tax = tax_details.get(regime_key, {}).get("total_tax", 0.0)
         
+        ai_explainability = None
         if total_tax > 0.0 and client:
-            prompt = f"A user in India has a gross annual income of ₹{income:,} and has a total tax liability of ₹{total_tax:,} under the recommended {recommended_regime}.\n\nGenerate a customized list of tax-saving investment recommendations for them. Suggest specific options under Section 80C (up to 1.5L, e.g. ELSS, PPF), Section 80CCD(1B) (up to 50k in NPS), and Section 80D (Health Insurance). Be brief and format the response as a bulleted list with clear estimated tax savings."
-            
+            prompt = (
+                f"A user in India has a gross annual income of ₹{income:,} and has a total tax liability of ₹{total_tax:,} "
+                f"under the recommended {recommended_regime}. Generate structured tax-saving recommendations.\n\n"
+                f"Your response must be a single JSON object with no markdown surrounding it. It must strictly follow this JSON schema:\n"
+                f"{{\n"
+                f"  \"assumptions\": [\"string\"],\n"
+                f"  \"top_drivers\": [\n"
+                f"     {{\"driver\": \"string\", \"delta\": \"string\", \"reason\": \"string\"}}\n"
+                f"  ],\n"
+                f"  \"recommendations\": [\"string\"]\n"
+                f"}}\n"
+            )
             try:
                 ai_res = client.chat.completions.create(
                     model="llama-3.1-8b-instant",
                     messages=[
-                        {"role": "system", "content": "You are a professional Indian tax consultant. Give brief, actionable advice."},
+                        {"role": "system", "content": "You are a professional Indian tax consultant. Answer ONLY with the requested JSON schema and no conversational filler."},
                         {"role": "user", "content": prompt}
                     ]
                 )
-                recommendations = ai_res.choices[0].message.content.strip()
+                import json
+                content = ai_res.choices[0].message.content.strip()
+                if content.startswith("```"):
+                    if content.startswith("```json"):
+                        content = content[7:]
+                    else:
+                        content = content[3:]
+                    if content.endswith("```"):
+                        content = content[:-3]
+                ai_explainability = json.loads(content.strip())
             except Exception as ai_err:
                 app.logger.error(f"Tax AI Recommendation Error: {str(ai_err)}")
-                recommendations = "AI Tax recommendations are currently unavailable. Consider investing in ELSS or NPS to reduce your tax."
-        elif total_tax > 0.0:
-            recommendations = "AI Tax recommendations are currently offline (no GROQ_API_KEY configured). Consider investing in ELSS or NPS to reduce your tax."
-                
-        tax_details["ai_recommendations"] = recommendations
+
+        if not ai_explainability or not isinstance(ai_explainability, dict):
+            ai_explainability = offline_explainability
+
+        explainability = {
+            "assumptions": ai_explainability.get("assumptions", offline_explainability["assumptions"]),
+            "top_drivers": ai_explainability.get("top_drivers", offline_explainability["top_drivers"]),
+            "recommendations": ai_explainability.get("recommendations", offline_explainability["recommendations"]),
+            "lever_contributions": lever_contributions
+        }
+        
+        tax_details["explainability"] = explainability
+        tax_details["ai_recommendations"] = "\n".join(f"- {r}" for r in explainability["recommendations"])
         return jsonify({"tax": tax_details})
 
     except ValidationError as e:
@@ -1620,14 +1765,8 @@ def tax_simulate():
         scenario_a = data.get("scenario_a") or {}
         scenario_b = data.get("scenario_b") or {}
 
-
         if not isinstance(scenario_a, dict) or not isinstance(scenario_b, dict):
             raise ValidationError("'scenario_a' and 'scenario_b' must be objects")
-
-
-        if not isinstance(scenario_a, dict) or not isinstance(scenario_b, dict):
-            raise ValidationError("'scenario_a' and 'scenario_b' must be objects")
-
 
         scenario_a_d80c = validate_float(scenario_a.get("deduction_80c", 0.0), "scenario_a.deduction_80c", min_val=0.0)
         scenario_a_d80d = validate_float(scenario_a.get("deduction_80d", 0.0), "scenario_a.deduction_80d", min_val=0.0)
@@ -1654,6 +1793,41 @@ def tax_simulate():
         scenario_b_hra_inputs = validate_hra_inputs(scenario_b, "scenario_b")
 
         result = simulate_tax_scenarios(income, scenario_a={"deduction_80c": scenario_a_d80c, "deduction_80d": scenario_a_d80d, "deduction_hra": scenario_a_hra, "hra_inputs": scenario_a_hra_inputs}, scenario_b={"deduction_80c": scenario_b_d80c, "deduction_80d": scenario_b_d80d, "deduction_hra": scenario_b_hra, "hra_inputs": scenario_b_hra_inputs})
+
+        # Compute exact lever contributions under Old Regime for Scenario A and Scenario B (savings vs standard deduction only)
+        a_tax_no_ded = calculate_tax(income, deduction_80c=0, deduction_80d=0, deduction_hra=0)
+        a_old_tax_no_ded = a_tax_no_ded["old_regime"]["total_tax"]
+
+        a_tax_80c = calculate_tax(income, deduction_80c=scenario_a_d80c, deduction_80d=0, deduction_hra=0)
+        a_saving_80c = max(0.0, a_old_tax_no_ded - a_tax_80c["old_regime"]["total_tax"])
+
+        a_tax_80d = calculate_tax(income, deduction_80c=0, deduction_80d=scenario_a_d80d, deduction_hra=0)
+        a_saving_80d = max(0.0, a_old_tax_no_ded - a_tax_80d["old_regime"]["total_tax"])
+
+        a_tax_hra = calculate_tax(income, deduction_80c=0, deduction_80d=0, deduction_hra=scenario_a_hra, hra_inputs=scenario_a_hra_inputs)
+        a_saving_hra = max(0.0, a_old_tax_no_ded - a_tax_hra["old_regime"]["total_tax"])
+
+        b_tax_80c = calculate_tax(income, deduction_80c=scenario_b_d80c, deduction_80d=0, deduction_hra=0)
+        b_saving_80c = max(0.0, a_old_tax_no_ded - b_tax_80c["old_regime"]["total_tax"])
+
+        b_tax_80d = calculate_tax(income, deduction_80c=0, deduction_80d=scenario_b_d80d, deduction_hra=0)
+        b_saving_80d = max(0.0, a_old_tax_no_ded - b_tax_80d["old_regime"]["total_tax"])
+
+        b_tax_hra = calculate_tax(income, deduction_80c=0, deduction_80d=0, deduction_hra=scenario_b_hra, hra_inputs=scenario_b_hra_inputs)
+        b_saving_hra = max(0.0, a_old_tax_no_ded - b_tax_hra["old_regime"]["total_tax"])
+
+        lever_contributions = {
+            "scenario_a": {
+                "80c": round(a_saving_80c, 2),
+                "80d": round(a_saving_80d, 2),
+                "hra": round(a_saving_hra, 2)
+            },
+            "scenario_b": {
+                "80c": round(b_saving_80c, 2),
+                "80d": round(b_saving_80d, 2),
+                "hra": round(b_saving_hra, 2)
+            }
+        }
 
         # Deterministic explanation always available
         best_regime_a = result["comparison"]["best_regime"]["scenario_a"]
@@ -1692,6 +1866,26 @@ def tax_simulate():
 
         result["explanation"] = explanation
         result["ai_available"] = client is not None
+
+        # Build sensitivity ranking list as drivers
+        drivers = []
+        for rank in lever_ranking:
+            drivers.append({
+                "driver": f"Lever {rank['lever']}",
+                "delta": f"Saves ₹{abs(rank['delta_per_1']):.2f} tax per ₹1 contribution.",
+                "reason": f"Sensitivity analysis for Scenario B recommended regime {best_regime_b}."
+            })
+
+        result["explainability"] = {
+            "assumptions": [
+                "Standard deduction of ₹75,000 for New Regime, ₹50,000 for Old Regime.",
+                "Section 80C deductions are capped at ₹1,50,000.",
+                "Section 80D deductions are capped at ₹25,000.",
+                "Tax rebates under Section 87A apply."
+            ],
+            "top_drivers": drivers,
+            "lever_contributions": lever_contributions
+        }
 
         return jsonify({"result": result})
 

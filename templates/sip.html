@@ -19,6 +19,9 @@
       <label>Investment Period (Years)</label>
       <input type="number" required min="0" id="sip_years" placeholder="e.g. 10">
 
+      <label>Inflation Rate (%)</label>
+      <input type="number" min="0" id="sip_inflation" placeholder="e.g. 6" value="6" style="margin-bottom:12px;">
+
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="btn btn-gold" style="flex:1" onclick="calcSIP()" id="sipBtn">Calculate</button>
         <button class="btn btn-ghost" style="flex:1" onclick="resetSIP()" id="sipResetBtn">Reset</button>
@@ -38,6 +41,77 @@
       </div>
     </div>
   </div>
+
+  <!-- SIP Explainability & What-If Simulation -->
+  <div id="sip-explainability" class="card" style="display: none; max-width: 900px; margin-top: 20px;">
+    <div class="card-title">💡 Explainable Projections & Sensitivity Analysis</div>
+    
+    <!-- Sliders section -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Return Rate Slider</span>
+          <span id="sliderSipRateVal" style="color: var(--gold2); font-weight: 600;">0%</span>
+        </label>
+        <input type="range" id="sliderSipRate" min="0" max="30" step="0.5" value="12" style="width: 100%; margin-top: 8px;" oninput="updateSipSlider('sip_rate', this.value, 'sliderSipRateVal', '%')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Adjust return rate to simulate market cycles (0% to 30%).</span>
+      </div>
+      
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Inflation Rate Slider</span>
+          <span id="sliderSipInflationVal" style="color: var(--gold2); font-weight: 600;">0%</span>
+        </label>
+        <input type="range" id="sliderSipInflation" min="0" max="15" step="0.5" value="6" style="width: 100%; margin-top: 8px;" oninput="updateSipSlider('sip_inflation', this.value, 'sliderSipInflationVal', '%')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Adjust inflation rate to see purchasing power impact (0% to 15%).</span>
+      </div>
+    </div>
+
+    <!-- Details -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+      <!-- Formulas used -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚙️ Compounding Formula</div>
+        <div style="font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 8px;" id="sipFormulaNominal"></div>
+        <div style="font-size: 12px; color: var(--muted); line-height: 1.5;" id="sipFormulaAdjusted"></div>
+      </div>
+
+      <!-- Sensitivity -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚡ Sensitivity Drivers</div>
+        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If returns are +1%:</span>
+              <span style="color:#2ecc8a;" id="sipSensRateP1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Future nominal value increases by the above amount.</div>
+          </div>
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If returns are -1%:</span>
+              <span style="color:#e74c3c;" id="sipSensRateM1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Future nominal value decreases by the above amount.</div>
+          </div>
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If inflation is +1%:</span>
+              <span style="color:#e74c3c;" id="sipSensInfP1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Adjusted purchasing power decreases by the above amount.</div>
+          </div>
+          <div>
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If inflation is -1%:</span>
+              <span style="color:#2ecc8a;" id="sipSensInfM1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Adjusted purchasing power increases by the above amount.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -45,10 +119,17 @@
 <script>
   let sipChartInstance = null;
 
+  function updateSipSlider(inputId, val, valSpanId, suffix = '') {
+    document.getElementById(inputId).value = val;
+    document.getElementById(valSpanId).textContent = val + suffix;
+    calcSIP();
+  }
+
   async function calcSIP() {
     const monthly = document.getElementById('sip_monthly').value;
     const rate = document.getElementById('sip_rate').value;
     const years = document.getElementById('sip_years').value;
+    const inflation = document.getElementById('sip_inflation').value || 0;
 
     if (!monthly || !rate || !years) {
       showResult('sipResult', '⚠ Please fill all fields.');
@@ -60,26 +141,70 @@
       const data = await apiFetch('/sip', {
         monthly: parseFloat(monthly),
         rate: parseFloat(rate),
-        years: parseInt(years)
+        years: parseInt(years),
+        inflation: parseFloat(inflation)
       });
 
       if (data.error) {
         showResult('sipResult', `⚠ ${data.error}`);
       } else {
         const fv = data.future_value;
-        showResult('sipResult', `
+        const infVal = data.inflation_adjusted_value;
+        const inflationApplied = data.inflation_applied;
+
+        let resultHtml = `
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">Estimated Future Value</div>
           <div class="result-big">₹${fmtNum(fv)}</div>
+        `;
+
+        if (inflationApplied > 0) {
+          resultHtml += `
+            <div style="font-size:12px;color:var(--gold2);margin-top:4px;font-weight:600">
+              Inflation-Adjusted Value (${inflationApplied}%): ₹${fmtNum(infVal)}
+            </div>
+          `;
+        }
+
+        resultHtml += `
           <div style="font-size:12px;color:var(--muted);margin-top:6px">
             Invested: ₹${fmtNum(monthly * years * 12)} &nbsp;·&nbsp;
             Gains: ₹${fmtNum(fv - monthly * years * 12)}
           </div>
-        `);
+        `;
+        showResult('sipResult', resultHtml);
 
         updateReportData({
           sip_projection: `Rs. ${fmtNum(fv)} (Invested: Rs. ${fmtNum(monthly * years * 12)})`
         });
         showExportSection();
+
+        // Explainability & Simulation card
+        if (data.explainability) {
+          document.getElementById('sip-explainability').style.display = 'block';
+          
+          // Sync sliders
+          document.getElementById('sliderSipRate').value = rate;
+          document.getElementById('sliderSipRateVal').textContent = rate + '%';
+          document.getElementById('sliderSipInflation').value = inflation;
+          document.getElementById('sliderSipInflationVal').textContent = inflation + '%';
+
+          // Set formulas
+          document.getElementById('sipFormulaNominal').innerHTML = `<strong>Nominal FV Formula:</strong><br/>${data.explainability.formulas.nominal_future_value}`;
+          document.getElementById('sipFormulaAdjusted').innerHTML = `<strong>Inflation Adjusted Formula:</strong><br/>${data.explainability.formulas.inflation_adjusted_value}`;
+
+          // Set sensitivity values
+          const sens = data.explainability.sensitivity;
+          
+          const formatDiff = (diff) => {
+            const prefix = diff >= 0 ? '+₹' : '-₹';
+            return `${prefix}${fmtNum(Math.abs(diff))}`;
+          };
+
+          document.getElementById('sipSensRateP1').textContent = formatDiff(sens.rate_plus_1_percent.difference);
+          document.getElementById('sipSensRateM1').textContent = formatDiff(sens.rate_minus_1_percent.difference);
+          document.getElementById('sipSensInfP1').textContent = formatDiff(sens.inflation_plus_1_percent.difference);
+          document.getElementById('sipSensInfM1').textContent = formatDiff(sens.inflation_minus_1_percent.difference);
+        }
 
         // Compute compounding points
         const monthlyFloat = parseFloat(monthly);
@@ -160,6 +285,7 @@
     document.getElementById('sip_monthly').value = '';
     document.getElementById('sip_rate').value = '';
     document.getElementById('sip_years').value = '';
+    document.getElementById('sip_inflation').value = '6';
     const res = document.getElementById('sipResult');
     res.innerHTML = '';
     res.classList.remove('visible');
@@ -169,6 +295,14 @@
     }
     const exportSection = document.getElementById('export-section');
     if (exportSection) exportSection.style.display = 'none';
+
+    // Hide explainability card and reset sliders
+    const expCard = document.getElementById('sip-explainability');
+    if (expCard) expCard.style.display = 'none';
+    document.getElementById('sliderSipRate').value = 12;
+    document.getElementById('sliderSipRateVal').textContent = '12%';
+    document.getElementById('sliderSipInflation').value = 6;
+    document.getElementById('sliderSipInflationVal').textContent = '6%';
   }
 </script>
 {% endblock %}
