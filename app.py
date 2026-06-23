@@ -807,7 +807,78 @@ def predictor_status():
     return jsonify({
         'is_trained': predictor.is_trained,
         'model_dir': predictor.model_dir
-    })    
+    })   
+
+    # ---------------- FIRE PLANNER ----------------
+from utils.fire_planner import FIREPlanner
+
+@app.route('/fire-planner')
+@login_required
+def fire_planner_page():
+    """FIRE Path Planner Page"""
+    return render_template('fire_planner.html', active_page='fire_planner')
+
+@app.route('/api/fire/plan', methods=['POST'])
+@login_required
+def fire_plan():
+    """Generate FIRE plan with Monte Carlo simulation"""
+    try:
+        data = request.json
+        
+        # Create planner
+        planner = FIREPlanner(
+            current_age=data.get('current_age', 30),
+            retirement_age=data.get('retirement_age', 45),
+            annual_expenses=data.get('annual_expenses', 500000),
+            current_corpus=data.get('current_corpus', 1000000),
+            monthly_savings=data.get('monthly_savings', 30000),
+            return_mean=data.get('return_mean', 0.10),
+            return_std=data.get('return_std', 0.15),
+            inflation_rate=data.get('inflation_rate', 0.06)
+        )
+        
+        # Get plan summary
+        plan = planner.get_plan_summary()
+        
+        return jsonify({
+            'success': True,
+            'data': plan,
+            'visualization': planner.get_visualization_data()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/fire/quick', methods=['POST'])
+@login_required
+def fire_quick():
+    """Quick FIRE calculation without full Monte Carlo"""
+    try:
+        data = request.json
+        
+        planner = FIREPlanner(
+            current_age=data.get('current_age', 30),
+            retirement_age=data.get('retirement_age', 45),
+            annual_expenses=data.get('annual_expenses', 500000),
+            current_corpus=data.get('current_corpus', 1000000),
+            monthly_savings=data.get('monthly_savings', 30000),
+            return_mean=data.get('return_mean', 0.10),
+            return_std=data.get('return_std', 0.15),
+            inflation_rate=data.get('inflation_rate', 0.06)
+        )
+        
+        # Run quick simulation
+        mc_results = planner.run_monte_carlo(iterations=200)
+        
+        return jsonify({
+            'success': True,
+            'success_probability': mc_results['success']['probability'],
+            'median_corpus': mc_results['corpus']['median'],
+            'target_corpus': planner.target_corpus
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
 
 
