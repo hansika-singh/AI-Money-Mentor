@@ -1423,7 +1423,9 @@
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
     <div class="nav-item" data-page="voice-assistant"><span class="icon">🗣️</span> Voice Assistant</div>
+
     <div class="nav-item" data-page="predictive-alerts"><span class="icon">🔮</span> Predictive Alerts</div>
+
 
 
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
@@ -1806,7 +1808,6 @@
 
 
 
-
        <thead>
   <tr>
     <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Date</th>
@@ -2036,6 +2037,13 @@
       
       if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
 
+    function appendMsg(boxId, role, text, safety) {
+      const box = document.getElementById(boxId);
+      const dashWelcome = document.getElementById('chatWelcome');
+      const chatWelcome = document.getElementById('chatPageWelcome');
+      
+      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
 
     function appendMsg(boxId, role, text, safety) {
       const box = document.getElementById(boxId);
@@ -2224,8 +2232,6 @@ async function chatSend() {
     }
     setLoading('chatBtn', false);
 }
-
-
 
 
     function dashQuick(text) {
@@ -2754,6 +2760,7 @@ Add Savings
 
 
 
+
     function toggleTheme() {
       document.body.classList.toggle("light-theme");
       const btn = document.getElementById("themeToggle");
@@ -2786,6 +2793,7 @@ Add Savings
     } else {
       console.warn("⚠️ Speech Recognition is NOT supported in this browser");
     }
+
 
 
 

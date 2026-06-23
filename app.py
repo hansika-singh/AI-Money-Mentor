@@ -675,6 +675,7 @@ def voice_test():
         ]
     })
 
+
   # ---------------- COUPLE FINANCE PLANNER ----------------
 from utils.couple_finance import CoupleFinanceManager
 
@@ -897,6 +898,7 @@ def couple_dashboard():
         result = couple_manager.get_couple_dashboard(current_user.id)
         return jsonify(result)
     except Exception as e:
+
         return jsonify({'error': str(e)}), 500
 
       # ---------------- PREDICTIVE FINANCIAL MODELS ----------------
@@ -1028,6 +1030,9 @@ def predictor_status():
         'is_trained': predictor.is_trained,
         'model_dir': predictor.model_dir
     })    
+
+        return jsonify({'error': str(e)}), 500  
+
 
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
