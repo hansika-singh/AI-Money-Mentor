@@ -37,12 +37,88 @@
       </div>
     </div>
   </div>
+
+  <!-- Goal Planner Explainability & What-If Simulation -->
+  <div id="goal-explainability" class="card" style="display: none; max-width: 900px; margin-top: 20px;">
+    <div class="card-title">💡 Explainable Projections & Sensitivity Analysis</div>
+    
+    <!-- Sliders section -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Return Rate Slider</span>
+          <span id="sliderGoalRateVal" style="color: var(--gold2); font-weight: 600;">0%</span>
+        </label>
+        <input type="range" id="sliderGoalRate" min="0" max="30" step="0.5" value="12" style="width: 100%; margin-top: 8px;" oninput="updateGoalSlider('goal_rate', this.value, 'sliderGoalRateVal', '%')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Adjust expected annual return rate (0% to 30%).</span>
+      </div>
+      
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Goal Duration Slider</span>
+          <span id="sliderGoalYearsVal" style="color: var(--gold2); font-weight: 600;">3 Years</span>
+        </label>
+        <input type="range" id="sliderGoalYears" min="1" max="40" step="1" value="3" style="width: 100%; margin-top: 8px;" oninput="updateGoalSlider('goal_years', this.value, 'sliderGoalYearsVal', ' Years')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Adjust investment duration (1 to 40 years).</span>
+      </div>
+    </div>
+
+    <!-- Details -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+      <!-- Formulas used -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚙️ Goal Formula</div>
+        <div style="font-size: 12px; color: var(--muted); line-height: 1.5;" id="goalFormula"></div>
+      </div>
+
+      <!-- Sensitivity -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚡ Sensitivity Drivers</div>
+        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If returns are +1%:</span>
+              <span id="goalSensRateP1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Saves the above amount per month on your SIP.</div>
+          </div>
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If returns are -1%:</span>
+              <span id="goalSensRateM1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Increases monthly SIP requirement by the above amount.</div>
+          </div>
+          <div style="border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If duration is +1 year:</span>
+              <span id="goalSensDurP1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Saves the above amount per month by investing longer.</div>
+          </div>
+          <div>
+            <div style="font-weight:600; display:flex; justify-content:space-between;">
+              <span>If duration is -1 year:</span>
+              <span id="goalSensDurM1">₹0</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted)">Increases monthly SIP requirement by the above amount.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
   let goalChartInstance = null;
+
+  function updateGoalSlider(inputId, val, valSpanId, suffix = '') {
+    document.getElementById(inputId).value = val;
+    document.getElementById(valSpanId).textContent = val + suffix;
+    calcGoalPlanner();
+  }
 
   async function calcGoalPlanner() {
     const name = document.getElementById('goal_name').value.trim();
@@ -75,6 +151,37 @@
             Wealth Gained: ₹${fmtNum(data.returns)}
           </div>
         `);
+
+        // Explainability & Simulation card
+        if (data.explainability) {
+          document.getElementById('goal-explainability').style.display = 'block';
+          
+          // Sync sliders
+          document.getElementById('sliderGoalRate').value = rate;
+          document.getElementById('sliderGoalRateVal').textContent = rate + '%';
+          document.getElementById('sliderGoalYears').value = years;
+          document.getElementById('sliderGoalYearsVal').textContent = years + ' Years';
+
+          // Set formula
+          document.getElementById('goalFormula').innerHTML = `<strong>Required Monthly SIP Formula:</strong><br/>${data.explainability.formulas.required_monthly_sip}`;
+
+          // Set sensitivity values
+          const sens = data.explainability.sensitivity;
+          
+          const formatSensValue = (diff, isReductionGood = true) => {
+            if (diff === 0) return '₹0';
+            const isGood = isReductionGood ? (diff < 0) : (diff > 0);
+            const color = isGood ? '#2ecc8a' : '#e74c3c';
+            const sign = diff > 0 ? '+' : '-';
+            const formatted = `${sign}₹${fmtNum(Math.abs(diff))}`;
+            return `<span style="color:${color}">${formatted}</span>`;
+          };
+
+          document.getElementById('goalSensRateP1').innerHTML = formatSensValue(sens.rate_plus_1_percent.difference, true);
+          document.getElementById('goalSensRateM1').innerHTML = formatSensValue(sens.rate_minus_1_percent.difference, true);
+          document.getElementById('goalSensDurP1').innerHTML = formatSensValue(sens.duration_plus_1_year.difference, true);
+          document.getElementById('goalSensDurM1').innerHTML = formatSensValue(sens.duration_minus_1_year.difference, true);
+        }
 
         if (goalChartInstance) goalChartInstance.destroy();
         const ctx = document.getElementById('goalChart').getContext('2d');
@@ -116,6 +223,14 @@
       goalChartInstance.destroy();
       goalChartInstance = null;
     }
+
+    // Hide explainability card and reset sliders
+    const expCard = document.getElementById('goal-explainability');
+    if (expCard) expCard.style.display = 'none';
+    document.getElementById('sliderGoalRate').value = 12;
+    document.getElementById('sliderGoalRateVal').textContent = '12%';
+    document.getElementById('sliderGoalYears').value = 3;
+    document.getElementById('sliderGoalYearsVal').textContent = '3 Years';
   }
 </script>
 {% endblock %}
