@@ -1,12 +1,14 @@
 """
-Multi-Agent Financial Advisor System
-Specialized agents for different financial domains with smart routing
+Multi-Agent Financial Advisor System with Chief Planner
+Specialized agents for different financial domains with intelligent orchestration
 """
 
-from typing import Dict, List, Tuple
-from urllib import response
+from typing import Dict, List, Tuple, Any, Optional
 from groq import Groq
 import re
+import json
+import time
+
 
 class FinancialAgent:
     """Base class for specialized financial agents"""
@@ -15,22 +17,37 @@ class FinancialAgent:
         self.name = name
         self.specialization = specialization
         self.system_prompt = system_prompt
-        self.keywords = keywords  # Keywords that trigger this agent
+        self.keywords = keywords
         self.queries_handled = 0
         self.total_response_time = 0
+        self.capabilities = self._extract_capabilities()
     
-    def process_query(self, query: str, client: Groq, context: str = "") -> Dict:
+    def _extract_capabilities(self) -> List[str]:
+        """Extract capabilities from system prompt"""
+        capabilities = []
+        lines = self.system_prompt.split('\n')
+        for line in lines:
+            if '- ' in line:
+                cap = line.replace('-', '').strip()
+                if cap and len(cap) > 10:
+                    capabilities.append(cap)
+        return capabilities[:5]  # Return top 5
+    
+    def process_query(self, query: str, client: Groq, context: str = "", sub_task: str = "") -> Dict:
         """Process query and return response"""
-        import time
         start = time.time()
         
         full_prompt = f"""{self.system_prompt}
+
+{sub_task if sub_task else 'Please analyze and respond to the user query.'}
 
 Previous context from other agents: {context if context else 'None'}
 
 User Query: {query}
 
-Provide expert, actionable advice based on your specialization. Be specific and practical."""
+Provide expert, actionable advice based on your specialization. Be specific and practical.
+If you need more information, ask clarifying questions.
+Include specific numbers, percentages, or recommendations where possible."""
 
         try:
             response = client.chat.completions.create(
@@ -52,7 +69,9 @@ Provide expert, actionable advice based on your specialization. Be specific and 
                 "specialization": self.specialization,
                 "response": response.choices[0].message.content,
                 "confidence": 0.85,
-                "response_time": round(elapsed, 2)
+                "response_time": round(elapsed, 2),
+                "query": query,
+                "capabilities": self.capabilities
             }
         except Exception as e:
             return {
@@ -60,16 +79,26 @@ Provide expert, actionable advice based on your specialization. Be specific and 
                 "specialization": self.specialization,
                 "response": f"I apologize, but I encountered an error. Let me try to help differently.",
                 "confidence": 0.3,
-                "error": str(e)
+                "error": str(e),
+                "query": query
             }
     
     def get_avg_response_time(self):
         if self.queries_handled == 0:
             return 0
         return round(self.total_response_time / self.queries_handled, 2)
+    
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "specialization": self.specialization,
+            "capabilities": self.capabilities,
+            "queries_handled": self.queries_handled,
+            "avg_response_time": self.get_avg_response_time()
+        }
 
-# Agent Definitions with specialized prompts and keywords
 
+# Agent Definitions
 TAX_AGENT = FinancialAgent(
     name="Tax Advisor",
     specialization="Tax Planning & Optimization",
@@ -225,116 +254,282 @@ Remember: You're the generalist - help with basic finance but defer to specialis
     keywords=["money", "finance", "budget", "save", "emergency fund", "financial goal", "spending", "expense", "salary", "income", "monthly budget", "financial planning", "wealth", "saving money"]
 )
 
-class MultiAgentRouter:
-    """Routes user queries to the most appropriate specialized agent"""
+
+class ChiefPlanner:
+    """
+    Chief Planner - Orchestrates all agents with intelligent task breakdown
+    """
     
     def __init__(self, client: Groq):
         self.client = client
-        self.agents = [
-            TAX_AGENT,
-            INVESTMENT_AGENT,
-            DEBT_AGENT,
-            RETIREMENT_AGENT,
-            INSURANCE_AGENT,
-            GENERAL_AGENT
-        ]
-        self.conversation_context = []  # Stores last 5 conversations for context
-        self.cross_agent_context = {}  # Share insights between agents
+        self.agents = {
+            'tax': TAX_AGENT,
+            'investment': INVESTMENT_AGENT,
+            'debt': DEBT_AGENT,
+            'retirement': RETIREMENT_AGENT,
+            'insurance': INSURANCE_AGENT,
+            'general': GENERAL_AGENT
+        }
+        self.agent_list = list(self.agents.values())
+        self.conversation_history = []
+        self.cross_agent_context = {}
+        self.agent_priority = ['tax', 'investment', 'retirement', 'insurance', 'debt', 'general']
     
-    def route_query(self, query: str) -> FinancialAgent:
-        """Determine which agent should handle the query"""
+    def analyze_query(self, query: str) -> Dict[str, Any]:
+        """Analyze query and identify which agents to consult"""
         query_lower = query.lower()
         
-        # Score each agent based on keyword matches
+        # Score each agent
         scores = {}
-        for agent in self.agents:
+        for agent_name, agent in self.agents.items():
             score = 0
             for keyword in agent.keywords:
                 if keyword in query_lower:
                     score += 1
-            # Boost score for exact matches at start
+            # Boost for exact matches
             for keyword in agent.keywords:
                 if query_lower.startswith(keyword):
                     score += 2
-            scores[agent] = score
+            scores[agent_name] = score
         
-        # Get the agent with highest score
-        best_agent = max(scores, key=scores.get)
+        # Sort by priority and score
+        ordered_agents = []
+        for agent_name in self.agent_priority:
+            if scores.get(agent_name, 0) > 0:
+                ordered_agents.append({
+                    'name': agent_name,
+                    'score': scores[agent_name],
+                    'agent': self.agents[agent_name]
+                })
         
-        # If max score is 0, use GENERAL_AGENT
-        if scores[best_agent] == 0:
-            return GENERAL_AGENT
+        # If no agents match, use general
+        if not ordered_agents:
+            ordered_agents.append({
+                'name': 'general',
+                'score': 0,
+                'agent': GENERAL_AGENT
+            })
         
-        # If score is low (<2), maybe use general agent
-        if scores[best_agent] < 2:
-            return GENERAL_AGENT
-            
-        return best_agent
+        return {
+            'query': query,
+            'agents_to_consult': ordered_agents,
+            'primary_agent': ordered_agents[0]['name'] if ordered_agents else 'general'
+        }
     
-    def get_cross_agent_context(self, current_agent: FinancialAgent) -> str:
-        """Get relevant context from other agents for this query"""
-        context_parts = []
+    def break_down_query(self, query: str) -> List[Dict[str, str]]:
+        """Break down complex query into subtasks"""
+        subtasks = []
+        query_lower = query.lower()
         
-        # Get recent insights from other agents
-        for agent_name, context in self.cross_agent_context.items():
-            if agent_name != current_agent.name:
-                context_parts.append(f"[{agent_name} insight]: {context}")
+        # Check for multiple domains
+        domains = []
+        if any(k in query_lower for k in TAX_AGENT.keywords):
+            domains.append('tax')
+        if any(k in query_lower for k in INVESTMENT_AGENT.keywords):
+            domains.append('investment')
+        if any(k in query_lower for k in DEBT_AGENT.keywords):
+            domains.append('debt')
+        if any(k in query_lower for k in RETIREMENT_AGENT.keywords):
+            domains.append('retirement')
+        if any(k in query_lower for k in INSURANCE_AGENT.keywords):
+            domains.append('insurance')
         
-        return " | ".join(context_parts) if context_parts else ""
+        if not domains:
+            domains = ['general']
+        
+        for domain in domains:
+            subtasks.append({
+                'domain': domain,
+                'query': query,
+                'priority': self.agent_priority.index(domain) if domain in self.agent_priority else 999
+            })
+        
+        return sorted(subtasks, key=lambda x: x['priority'])
+    
+    def synthesize_response(self, results: List[Dict]) -> Dict[str, Any]:
+        """Synthesize responses from multiple agents"""
+        if not results:
+            return {
+                'response': "I couldn't process your query. Please try again.",
+                'summary': "No response generated",
+                'confidence': 0
+            }
+        
+        # If only one agent, return its response directly
+        if len(results) == 1:
+            return {
+                'response': results[0].get('response', ''),
+                'summary': results[0].get('response', '')[:200],
+                'confidence': results[0].get('confidence', 0.7),
+                'agents_consulted': [results[0].get('agent', '')]
+            }
+        
+        # Build synthesis prompt
+        synthesis_prompt = f"""
+        You are the Chief Financial Planner. Synthesize these expert responses into a comprehensive answer.
+
+        User Query: {results[0].get('query', '') if results else ''}
+
+        Expert Responses:
+        """
+        
+        for i, result in enumerate(results):
+            synthesis_prompt += f"""
+            --- {result.get('agent', 'Expert')} ({result.get('specialization', '')}) ---
+            {result.get('response', 'No response')}
+            Confidence: {result.get('confidence', 0.5)}
+            """
+        
+        synthesis_prompt += """
+        Provide a comprehensive synthesis that:
+        1. Executive Summary (2-3 key takeaways)
+        2. Detailed analysis from each expert
+        3. Actionable next steps
+        4. Confidence assessment
+
+        Make it coherent and easy to understand. Use bullet points for clarity.
+        """
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": "You are the Chief Financial Planner synthesizing expert advice."},
+                    {"role": "user", "content": synthesis_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=800
+            )
+            
+            synthesized = response.choices[0].message.content
+            
+            return {
+                'response': synthesized,
+                'summary': synthesized.split('\n')[0] if synthesized else '',
+                'confidence': 0.85,
+                'agents_consulted': [r.get('agent', '') for r in results],
+                'full_response': synthesized
+            }
+        except Exception as e:
+            return {
+                'response': f"Error synthesizing: {str(e)}",
+                'summary': "Synthesis error",
+                'confidence': 0.3,
+                'agents_consulted': []
+            }
     
     def process_query(self, query: str, chat_history: List = None) -> Dict:
-        """Process query using the best suited agent"""
+        """
+        Main entry point: Process query through multi-agent system
+        """
         try:
-            # Select the right agent
-            selected_agent = self.route_query(query)
+            # Step 1: Analyze query
+            analysis = self.analyze_query(query)
             
-            # Get context from previous conversations
-            context = self.get_cross_agent_context(selected_agent)
+            # Step 2: Break down into subtasks
+            subtasks = self.break_down_query(query)
             
-            # Add chat history context if available
-            if chat_history and len(chat_history) > 0:
-                last_few = chat_history[-3:]  # Last 3 exchanges
-                history_text = " | ".join([f"Q: {h['user']} A: {h.get('assistant', '')[:100]}" for h in last_few])
-                context += f" | Recent conversation: {history_text}" if context else f"Recent conversation: {history_text}"
+            # Step 3: Execute subtasks
+            results = []
+            for subtask in subtasks:
+                agent_name = subtask['domain']
+                agent = self.agents.get(agent_name, GENERAL_AGENT)
+                
+                # Get cross-agent context
+                context = self.get_cross_agent_context(agent)
+                
+                # Process with agent
+                result = agent.process_query(query, self.client, context, subtask.get('sub_task', ''))
+                results.append(result)
+                
+                # Store context
+                self.cross_agent_context[agent.name] = result.get('response', '')[:200]
             
-            # Process with selected agent
-            result = selected_agent.process_query(query, self.client, context)
+            # Step 4: Synthesize results
+            synthesized = self.synthesize_response(results)
             
-            # Store context for cross-agent learning
-            self.cross_agent_context[selected_agent.name] = result['response'][:200]
-            
-            # Keep conversation history
-            self.conversation_context.append({
-                "query": query,
-                "agent": selected_agent.name,
-                "specialization": selected_agent.specialization
+            # Step 5: Store in history
+            self.conversation_history.append({
+                'query': query,
+                'agents_consulted': [r.get('agent', '') for r in results],
+                'response': synthesized.get('response', ''),
+                'timestamp': time.time()
             })
+            
             # Keep only last 10
-            if len(self.conversation_context) > 10:
-                self.conversation_context.pop(0)
+            if len(self.conversation_history) > 10:
+                self.conversation_history.pop(0)
             
-            # Add routing info to result
-            result["routing_reason"] = f"Matched with {selected_agent.specialization} agent"
-            result["queried_agent"] = selected_agent.name
-            
-            return result
+            return {
+                'success': True,
+                'query': query,
+                'response': synthesized.get('response', ''),
+                'summary': synthesized.get('summary', ''),
+                'confidence': synthesized.get('confidence', 0.7),
+                'agents_consulted': synthesized.get('agents_consulted', []),
+                'agent_results': results,
+                'analysis': analysis,
+                'disclaimer': self.get_disclaimer()
+            }
             
         except Exception as e:
             return {
-                "agent": "Error Handler",
-                "specialization": "System",
-                "response": "I apologize, but I'm having trouble processing your request. Could you please rephrase your question?",
-                "confidence": 0,
-                "error": str(e)
+                'success': False,
+                'query': query,
+                'response': f"I apologize, but I encountered an error processing your request: {str(e)}",
+                'summary': "Error processing query",
+                'confidence': 0,
+                'error': str(e)
             }
     
+    def get_cross_agent_context(self, current_agent: FinancialAgent) -> str:
+        """Get relevant context from other agents"""
+        context_parts = []
+        for agent_name, context in self.cross_agent_context.items():
+            if agent_name != current_agent.name:
+                context_parts.append(f"[{agent_name}]: {context[:100]}...")
+        return " | ".join(context_parts) if context_parts else ""
+    
+    def get_disclaimer(self) -> str:
+        """Standard financial disclaimer"""
+        return """
+        ⚠️ **Disclaimer:** This is AI-generated financial guidance from specialized agents. 
+        While we strive for accuracy, this should not replace professional financial advice. 
+        Please consult a certified financial advisor before making important financial decisions.
+        """
+    
+    def get_agent_status(self) -> Dict:
+        """Get status of all agents"""
+        return {
+            'agents': [agent.to_dict() for agent in self.agent_list],
+            'conversation_count': len(self.conversation_history),
+            'total_queries': sum(a.queries_handled for a in self.agent_list)
+        }
+    
+    def reset_context(self):
+        """Reset cross-agent context"""
+        self.cross_agent_context = {}
+        self.conversation_history = []
+        for agent in self.agent_list:
+            agent.queries_handled = 0
+            agent.total_response_time = 0
+
+
+class MultiAgentRouter:
+    """Legacy router - kept for backward compatibility"""
+    
+    def __init__(self, client: Groq):
+        self.client = client
+        self.chief_planner = ChiefPlanner(client)
+    
+    def route_query(self, query: str) -> FinancialAgent:
+        """Determine which agent should handle the query"""
+        return self.chief_planner.agents.get('general', GENERAL_AGENT)
+    
+    def process_query(self, query: str, chat_history: List = None) -> Dict:
+        """Process query using the Chief Planner"""
+        return self.chief_planner.process_query(query, chat_history)
+    
     def get_performance_stats(self) -> Dict:
-        """Get performance metrics for all agents"""
-        stats = {}
-        for agent in self.agents:
-            stats[agent.name] = {
-                "queries_handled": agent.queries_handled,
-                "avg_response_time": agent.get_avg_response_time(),
-                "specialization": agent.specialization
-            }
-        return stats
+        """Get performance metrics"""
+        return self.chief_planner.get_agent_status()
