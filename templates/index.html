@@ -1424,6 +1424,9 @@
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
     <div class="nav-item" data-page="voice-assistant"><span class="icon">🗣️</span> Voice Assistant</div>
 
+    <div class="nav-item" data-page="predictive-alerts"><span class="icon">🔮</span> Predictive Alerts</div>
+
+
 
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
@@ -1804,6 +1807,7 @@
         </thead>
 
 
+
        <thead>
   <tr>
     <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Date</th>
@@ -2048,6 +2052,14 @@
       
       if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
 
+
+    function appendMsg(boxId, role, text, safety) {
+      const box = document.getElementById(boxId);
+      const dashWelcome = document.getElementById('chatWelcome');
+      const chatWelcome = document.getElementById('chatPageWelcome');
+      
+      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
     function appendMsg(boxId, role, text, safety) {
       const box = document.getElementById(boxId);
       const dashWelcome = document.getElementById('chatWelcome');
@@ -2062,6 +2074,7 @@
     
     if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
 
+
         dashWelcome.classList.add('hidden');
       }
       if (chatWelcome && !chatWelcome.classList.contains('hidden')) {
@@ -2074,6 +2087,7 @@
       
       let content = text;
       if (role === 'bot') {
+
 
         content = formatMarkdown(text);
       }
@@ -2188,6 +2202,7 @@
     } catch (e) {
 
 
+
         appendMsg('dashChat', 'bot', '⚠ Could not reach server.');
       }
       setLoading('dashBtn', false);
@@ -2217,6 +2232,7 @@ async function chatSend() {
     }
     setLoading('chatBtn', false);
 }
+
 
     function dashQuick(text) {
       document.getElementById('dashMsg').value = text;
@@ -2350,6 +2366,7 @@ async function chatSend() {
         document.getElementById("avgCard").innerHTML = `<h2>Average Expense</h2><p>₹${(calcData.Average || 0).toFixed(2)}</p>`;
 
 
+
         const tableBody = document.getElementById("expenseTableBody");
         tableBody.innerHTML = "";
 
@@ -2369,6 +2386,7 @@ async function chatSend() {
             </tr>
           `;
         });
+
 
 
 

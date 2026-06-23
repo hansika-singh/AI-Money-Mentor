@@ -904,7 +904,141 @@ def couple_dashboard():
         result = couple_manager.get_couple_dashboard(current_user.id)
         return jsonify(result)
     except Exception as e:
+
+        return jsonify({'error': str(e)}), 500
+
+      # ---------------- PREDICTIVE FINANCIAL MODELS ----------------
+from utils.financial_predictor import FinancialPredictor
+
+predictor = FinancialPredictor()
+
+@app.route('/predictive-alerts')
+@login_required
+def predictive_alerts_page():
+    """Predictive Alerts Page"""
+    return render_template('predictive_alerts.html', active_page='predictive_alerts')
+
+@app.route('/api/predict/train', methods=['POST'])
+@login_required
+def train_predictor():
+    """Train ML models on user's transaction data"""
+    try:
+        # Get user's expenses
+        expenses = Expense.query.filter_by(user_id=current_user.id).all()
+        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+        
+        if len(transactions) < 30:
+            return jsonify({
+                'success': False,
+                'error': f'Need at least 30 transactions. You have {len(transactions)}.'
+            })
+        
+        result = predictor.train_models(transactions)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict/balance', methods=['POST'])
+@login_required
+def predict_balance():
+    """Predict future balance"""
+    try:
+        data = request.json
+        income = data.get('income', 0)
+        balance = data.get('balance', 0)
+        days = data.get('days', 30)
+        
+        # Get user's expenses
+        expenses = Expense.query.filter_by(user_id=current_user.id).all()
+        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+        
+        if len(transactions) < 10:
+            return jsonify({
+                'success': False,
+                'error': f'Need at least 10 transactions for prediction. You have {len(transactions)}.'
+            })
+        
+        result = predictor.predict_balance(income, balance, transactions, days)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict/seasonal', methods=['GET'])
+@login_required
+def analyze_seasonal():
+    """Analyze seasonal spending patterns"""
+    try:
+        expenses = Expense.query.filter_by(user_id=current_user.id).all()
+        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+        
+        if len(transactions) < 30:
+            return jsonify({
+                'success': False,
+                'error': f'Need at least 30 transactions. You have {len(transactions)}.'
+            })
+        
+        result = predictor.analyze_seasonal_patterns(transactions)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict/recommendations', methods=['GET'])
+@login_required
+def get_recommendations():
+    """Get savings recommendations"""
+    try:
+        expenses = Expense.query.filter_by(user_id=current_user.id).all()
+        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+        
+        if len(transactions) < 10:
+            return jsonify({
+                'success': False,
+                'error': f'Need at least 10 transactions. You have {len(transactions)}.'
+            })
+        
+        # Get user's income (default 50000 if not available)
+        income = 50000  # TODO: Fetch from user profile
+        result = predictor.get_savings_recommendations(transactions, income)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict/anomalies', methods=['GET'])
+@login_required
+def detect_anomalies():
+    """Detect anomalous transactions"""
+    try:
+        expenses = Expense.query.filter_by(user_id=current_user.id).all()
+        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+        
+        if len(transactions) < 10:
+            return jsonify({
+                'success': True,
+                'anomalies': [],
+                'message': f'Need more transactions for detection. You have {len(transactions)}.'
+            })
+        
+        anomalies = predictor.detect_anomalies(transactions)
+        return jsonify({'success': True, 'anomalies': anomalies})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/predict/status', methods=['GET'])
+@login_required
+def predictor_status():
+    """Get predictor status"""
+    return jsonify({
+        'is_trained': predictor.is_trained,
+        'model_dir': predictor.model_dir
+    })    
+
         return jsonify({'error': str(e)}), 500  
+
 
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
