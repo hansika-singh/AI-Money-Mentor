@@ -42,6 +42,7 @@
     </div>
   </div>
 
+
   <!-- SIP Explainability & What-If Simulation -->
   <div id="sip-explainability" class="card" style="display: none; max-width: 900px; margin-top: 20px;">
     <div class="card-title">💡 Explainable Projections & Sensitivity Analysis</div>
@@ -109,6 +110,30 @@
             <div style="font-size:11px; color:var(--muted)">Adjusted purchasing power increases by the above amount.</div>
           </div>
         </div>
+
+<!-- ── STEP-UP SIP ─────────────────── -->
+  <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:start;max-width:900px;margin-top:4px;">
+    <div class="card" style="flex:1;min-width:280px;">
+      <div class="card-title">📈 Step-Up SIP</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Uses Monthly, Rate &amp; Years from SIP Projection above.</div>
+      <label>Step-Up Type</label>
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <button id="stepupTypePerc" class="btn btn-gold" style="flex:1" onclick="setStepupType('percentage')">% Annual</button>
+        <button id="stepupTypeAmt" class="btn btn-ghost" style="flex:1" onclick="setStepupType('amount')">₹ Annual</button>
+      </div>
+      <label id="stepupValueLabel">Annual Step-Up (%)</label>
+      <input type="number" min="0" id="stepup_value" placeholder="e.g. 10">
+      <label>Inflation Rate (%) <span style="font-size:11px;color:var(--muted)">(optional)</span></label>
+      <input type="number" min="0" id="stepup_inflation" placeholder="e.g. 6">
+      <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="calcStepupSIP()" id="stepupBtn">
+        Compare with Step-Up
+      </button>
+      <div id="stepupResult" class="result-box"></div>
+    </div>
+    <div class="card" style="min-height:380px;flex:1.2;min-width:280px;">
+      <div class="card-title">Flat vs Step-Up Comparison</div>
+      <div style="position:relative;height:320px;">
+        <canvas id="stepupChart"></canvas>
       </div>
     </div>
   </div>
@@ -281,6 +306,138 @@
     setLoading('sipBtn', false);
   }
 
+  let stepupChartInstance = null;
+  let currentStepupType = 'percentage';
+
+  function setStepupType(type) {
+    currentStepupType = type;
+    document.getElementById('stepupValueLabel').textContent =
+      type === 'percentage' ? 'Annual Step-Up (%)' : 'Annual Step-Up (₹)';
+    document.getElementById('stepup_value').placeholder =
+      type === 'percentage' ? 'e.g. 10' : 'e.g. 1000';
+    document.getElementById('stepupTypePerc').className =
+      type === 'percentage' ? 'btn btn-gold' : 'btn btn-ghost';
+    document.getElementById('stepupTypeAmt').className =
+      type === 'amount' ? 'btn btn-gold' : 'btn btn-ghost';
+  }
+
+  async function calcStepupSIP() {
+    const monthly = document.getElementById('sip_monthly').value;
+    const rate = document.getElementById('sip_rate').value;
+    const years = document.getElementById('sip_years').value;
+    const stepup_value = document.getElementById('stepup_value').value;
+    const inflation = document.getElementById('stepup_inflation').value;
+
+    if (!monthly || !rate || !years) {
+      showResult('stepupResult', '⚠ Please fill Monthly Investment, Rate and Years in SIP Projection above first.');
+      return;
+    }
+    if (stepup_value === '') {
+      showResult('stepupResult', '⚠ Please enter a Step-Up value.');
+      return;
+    }
+
+    setLoading('stepupBtn', true);
+    try {
+      const data = await apiFetch('/sip-stepup', {
+        monthly: parseFloat(monthly),
+        rate: parseFloat(rate),
+        years: parseInt(years),
+        stepup_type: currentStepupType,
+        stepup_value: parseFloat(stepup_value),
+        inflation: inflation ? parseFloat(inflation) : 0.0
+      });
+
+      if (data.error) {
+        showResult('stepupResult', `⚠ ${data.error}`);
+      } else {
+        const fvFlat = data.flat_nominal_value;
+        const fvStepup = data.stepup_nominal_value;
+        const gain = fvStepup - fvFlat;
+        showResult('stepupResult', `
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="flex:1;min-width:120px;">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Flat SIP</div>
+              <div class="result-big" style="font-size:20px;">₹${fmtNum(fvFlat)}</div>
+              <div style="font-size:11px;color:var(--muted);">Invested: ₹${fmtNum(data.flat_total_invested)}</div>
+            </div>
+            <div style="flex:1;min-width:120px;">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">Step-Up SIP</div>
+              <div class="result-big" style="font-size:20px;color:#14c8bf;">₹${fmtNum(fvStepup)}</div>
+              <div style="font-size:11px;color:var(--muted);">Invested: ₹${fmtNum(data.stepup_total_invested)}</div>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);">
+            Extra wealth from step-up: <strong style="color:#14c8bf;">₹${fmtNum(gain)}</strong>
+          </div>
+        `);
+
+        const labels = data.yearly_breakdown.map(y => `Year ${y.year}`);
+        const flatData = data.yearly_breakdown.map(y => Math.round(y.flat_value));
+        const stepupData = data.yearly_breakdown.map(y => Math.round(y.stepup_value));
+        const investedData = data.yearly_breakdown.map(y => Math.round(y.flat_invested));
+
+        if (stepupChartInstance) stepupChartInstance.destroy();
+        const ctx = document.getElementById('stepupChart').getContext('2d');
+        stepupChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Step-Up SIP',
+                data: stepupData,
+                borderColor: '#14c8bf',
+                backgroundColor: 'rgba(20, 200, 191, 0.1)',
+                fill: true,
+                tension: 0.3
+              },
+              {
+                label: 'Flat SIP',
+                data: flatData,
+                borderColor: '#d4a843',
+                backgroundColor: 'rgba(212, 168, 67, 0.08)',
+                fill: true,
+                tension: 0.3
+              },
+              {
+                label: 'Amount Invested',
+                data: investedData,
+                borderColor: '#5a6a82',
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
+                tension: 0.1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#eef0f5', font: { family: 'Instrument Sans' } } }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255,255,255,0.05)' },
+                ticks: { color: '#5a6a82' }
+              },
+              y: {
+                grid: { color: 'rgba(255,255,255,0.05)' },
+                ticks: {
+                  color: '#5a6a82',
+                  callback: function(value) { return '₹' + fmtNum(value); }
+                }
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      showResult('stepupResult', '⚠ Could not reach server.');
+    }
+    setLoading('stepupBtn', false);
+  }
+  
   function resetSIP() {
     document.getElementById('sip_monthly').value = '';
     document.getElementById('sip_rate').value = '';
