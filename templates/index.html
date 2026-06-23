@@ -1105,6 +1105,7 @@
     }
     
 
+
     /* ===== GOAL TRACKER STYLING FIX ===== */
     #goalTracker {
       background: rgba(15, 23, 42, 0.6);
@@ -1312,6 +1313,30 @@
       position: relative;
     }
 
+
+    /* ===== SAFETY INDICATOR ===== */
+    .safety-indicator {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-top: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .safety-indicator.passed {
+      color: #2ecc8a;
+      background: rgba(46, 204, 138, 0.1);
+    }
+    .safety-indicator.warning {
+      color: #f39c12;
+      background: rgba(243, 156, 18, 0.1);
+    }
+    .safety-indicator.failed {
+      color: #e05252;
+      background: rgba(224, 82, 82, 0.1);
+
+
     /* ===== SAFETY INDICATOR ===== */
     .safety-indicator {
       font-size: 11px;
@@ -1357,6 +1382,7 @@
     .safety-indicator.failed {
       color: #e05252;
       background: rgba(224, 82, 82, 0.1);
+
 
     }
   </style>
@@ -1396,11 +1422,19 @@
 
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
+    <div class="nav-item" data-page="voice-assistant"><span class="icon">🗣️</span> Voice Assistant</div>
+
+
+    <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
+    <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
 
 
 
     <div class="nav-item" data-page="ledger"><span class="icon">🏦</span> Ledger</div>
     <div class="nav-item" data-page="portfolio-optimizer"><span class="icon">📈</span> Portfolio Optimizer</div>
+
+    <div class="nav-item" data-page="voice-assistant"><span class="icon">🗣️</span> Voice Assistant</div>
+
     <div class="nav-item" data-page="rag-assistant"><span class="icon">🧠</span> RAG Assistant</div>
 
     <div class="nav-item" data-page="retirement"><span class="icon">📈</span> Retirement Simulator</div>
@@ -1599,6 +1633,10 @@
         <div class="card">
 
 
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
+        <div class="card">
+
+
        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: start; justify-content: center; width: 100%;"></div>
 
         <div class="card" style="flex: 1; min-width: 320px; max-width: 500px;"></div>
@@ -1717,6 +1755,7 @@
 
 
 
+
 <!---------- EXPENSE TRACK------------------->
 <div id="expense" class="page">
   <div class="page-title">💲 Expense Track and Insights</div>
@@ -1746,6 +1785,7 @@
 
 
 
+
       <div class="cards">
         <div class="card" id="totalCard"><h2>Total Spend</h2></div>
         <div class="card" id="avgCard"><h2>Average Expense</h2></div>
@@ -1764,7 +1804,6 @@
         </thead>
 
 
-
        <thead>
   <tr>
     <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Date</th>
@@ -1773,7 +1812,6 @@
     <th style="text-align: center; padding: 10px; border-bottom: 1px solid #333;">Amount</th>
   </tr>
 </thead>
-
 
         <tbody id="expenseTableBody"></tbody>
       </table>
@@ -1995,6 +2033,13 @@
       
       if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
 
+    function appendMsg(boxId, role, text, safety) {
+      const box = document.getElementById(boxId);
+      const dashWelcome = document.getElementById('chatWelcome');
+      const chatWelcome = document.getElementById('chatPageWelcome');
+      
+      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
+
 
     function appendMsg(boxId, role, text, safety) {
       const box = document.getElementById(boxId);
@@ -2016,8 +2061,6 @@
     const chatWelcome = document.getElementById('chatPageWelcome');
     
     if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-
 
         dashWelcome.classList.add('hidden');
       }
@@ -2135,6 +2178,9 @@
 
 
       } catch (e) {
+
+
+      } catch (e) {
         appendMsg('dashChat', 'bot', '⚠ Could not reach server.');
       }
       setLoading('dashBtn', false);
@@ -2146,6 +2192,7 @@
       }
       setLoading('dashBtn', false);
     }
+
 
 
     setLoading('dashBtn', false);
@@ -2170,8 +2217,6 @@ async function chatSend() {
     }
     setLoading('chatBtn', false);
 }
-
-
 
     function dashQuick(text) {
       document.getElementById('dashMsg').value = text;
@@ -2351,6 +2396,10 @@ async function chatSend() {
 
 
 
+        });
+
+
+
                 <tr>
                     <td style="padding:10px;border-bottom:1px solid #222;">
                         ${formattedDate}
@@ -2477,6 +2526,7 @@ async function chatSend() {
 
 
 
+
                 <tr style="border-bottom: 1px solid var(--border);">
                   <td style="padding: 8px;">${item.name}</td>
                   <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
@@ -2496,7 +2546,6 @@ loadExpenses();
 let goals = [];
                           
 
-
           });
         }
       } catch (e) {
@@ -2513,6 +2562,7 @@ let goals = [];
     // ══════════════════════════════════════════════
     // THEME TOGGLE
     // ══════════════════════════════════════════════
+
 
 
     // ══════════════════════════════════════════════
@@ -2692,6 +2742,7 @@ Add Savings
 
 
 
+
     function toggleTheme() {
       document.body.classList.toggle("light-theme");
       const btn = document.getElementById("themeToggle");
@@ -2717,6 +2768,15 @@ Add Savings
     // VOICE-ENABLED EXPENSE INPUT
     // ══════════════════════════════════════════════
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+
+    if (SpeechRecognition) {
+      console.log("✅ Speech Recognition is supported in this browser");
+    } else {
+      console.warn("⚠️ Speech Recognition is NOT supported in this browser");
+    }
+
+
 
 
     if (SpeechRecognition) {
@@ -2939,6 +2999,7 @@ async function chatSend() {
 
     }
 
+
     let isListening = false;
     let recognition = null;
 
@@ -3069,6 +3130,18 @@ async function chatSend() {
         field.style.borderColor = originalBorder || '';
       }, 2000);
     }
+
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const voiceBtn = document.getElementById('voiceBtn');
+      if (voiceBtn) {
+        voiceBtn.addEventListener('click', startVoiceInput);
+      }
+    });
+  </script>
+
+</body>
+
 
     document.addEventListener('DOMContentLoaded', function() {
       const voiceBtn = document.getElementById('voiceBtn');

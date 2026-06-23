@@ -40,10 +40,19 @@
       <input type="number" step="any" id="alertPrice" placeholder="e.g. 3500" style="margin-bottom: 12px;">
       
       <label>Trigger Condition</label>
-      <select id="alertCond" style="background: var(--card-bg); color: var(--text); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; margin-bottom: 16px;">
+      <select id="alertCond" style="background: var(--card-bg); color: var(--text); border: 1px solid var(--border); padding: 8px; border-radius: 6px; width: 100%; margin-bottom: 12px;">
         <option value="above">Goes Above (≥)</option>
         <option value="below">Goes Below (≤)</option>
+        <option value="cross">Crosses Target</option>
+        <option value="cross_above">Crosses Above (≥)</option>
+        <option value="cross_below">Crosses Below (≤)</option>
       </select>
+
+      <label>Cooldown Period (Days)</label>
+      <input type="number" min="0" step="1" id="alertCooldown" value="0" style="margin-bottom: 12px;">
+
+      <label>Duration Requirement (Consecutive Checks)</label>
+      <input type="number" min="0" step="1" id="alertDuration" value="0" style="margin-bottom: 16px;">
 
       <button class="btn btn-gold" style="width: 100%" onclick="setAlert()" id="alertBtn">Set Price Alert</button>
       <div id="alertSetResult" class="result-box" style="margin-top: 10px;"></div>
@@ -77,6 +86,7 @@
   // Load price alerts on load
   document.addEventListener('DOMContentLoaded', () => {
     loadAlerts();
+    loadAlertHistory();
   });
 
   async function loadAlerts() {
@@ -93,11 +103,21 @@
         const badgeColor = a.is_triggered ? 'rgba(46,204,138,0.15)' : 'rgba(212,168,67,0.15)';
         const badgeText = a.is_triggered ? 'Triggered 🔔' : 'Active ⏳';
         const badgeTextColor = a.is_triggered ? '#2ecc8a' : 'var(--gold)';
+        const cooldownText = a.cooldown_days > 0 ? ` (${a.cooldown_days}d cooldown)` : '';
+        const durationText = a.duration_days > 0 ? ` (${a.duration_days} checks)` : '';
+        const operatorDisplay = {
+          'above': 'Goes Above (≥)',
+          'below': 'Goes Below (≤)',
+          'cross': 'Crosses',
+          'cross_above': 'Crosses Above (≥)',
+          'cross_below': 'Crosses Below (≤)'
+        }[a.operator_type || a.condition] || (a.operator_type || a.condition);
+
         return `
           <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;">
             <div>
               <strong style="color:var(--text);">${a.symbol}</strong>
-              <span style="font-size:12px; color:var(--muted); margin-left:8px;">${a.condition} ₹${fmtNum(a.target_price)}</span>
+              <span style="font-size:12px; color:var(--muted); margin-left:8px;">${operatorDisplay} ₹${fmtNum(a.target_price)}${cooldownText}${durationText}</span>
               <span style="display:inline-block; font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; margin-left:8px; background:${badgeColor}; color:${badgeTextColor};">${badgeText}</span>
             </div>
             <button class="btn btn-ghost" style="padding:4px 8px; font-size:12px; height:auto; min-height:auto; color:#ff5e5e;" onclick="deleteAlert(${a.id})">Delete</button>
@@ -113,6 +133,8 @@
     const symbol = document.getElementById('alertSym').value.trim().toUpperCase();
     const price = document.getElementById('alertPrice').value;
     const condition = document.getElementById('alertCond').value;
+    const cooldownDays = parseInt(document.getElementById('alertCooldown').value) || 0;
+    const durationDays = parseInt(document.getElementById('alertDuration').value) || 0;
     
     if (!symbol || !price) {
       showResult('alertSetResult', '⚠ Fill in all fields.');
@@ -127,7 +149,9 @@
         body: JSON.stringify({
           symbol: symbol,
           target_price: parseFloat(price),
-          condition: condition
+          operator_type: condition,
+          cooldown_days: cooldownDays,
+          duration_days: durationDays
         })
       });
       const data = await res.json();
@@ -137,6 +161,8 @@
         showResult('alertSetResult', `✅ Alert set for ${symbol}!`);
         document.getElementById('alertSym').value = '';
         document.getElementById('alertPrice').value = '';
+        document.getElementById('alertCooldown').value = '0';
+        document.getElementById('alertDuration').value = '0';
         loadAlerts();
       }
     } catch (e) {
@@ -149,8 +175,49 @@
     try {
       await fetch(`/api/alerts/${id}`, { method: 'DELETE' });
       loadAlerts();
+      loadAlertHistory();
     } catch (e) {
       console.error("Failed to delete alert:", e);
+    }
+  }
+
+  async function loadAlertHistory() {
+    try {
+      const res = await fetch('/api/alerts/history?limit=15');
+      const events = await res.json();
+      const listDiv = document.getElementById('eventsList');
+      if (events.length === 0) {
+        listDiv.innerHTML = `<p style="color: var(--muted); font-size: 13px;">No trigger events yet.</p>`;
+        return;
+      }
+      listDiv.innerHTML = events.map(e => {
+        const prevText = e.prev_price !== null && e.prev_price !== undefined ? ` (was ₹${fmtNum(e.prev_price)})` : '';
+        const reasonText = e.reason ? `<div style="font-size:11px; color:var(--muted); margin-top:2px;">${e.reason}</div>` : '';
+        return `
+          <div style="padding:8px 10px; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:6px; font-size:12px;">
+            <div style="display:flex; justify-content:space-between;">
+              <strong>${e.symbol}</strong>
+              <span style="color:var(--muted); font-size:11px;">${new Date(e.triggered_at).toLocaleString()}</span>
+            </div>
+            <div>
+              Triggered at <strong style="color:#2ecc8a;">₹${fmtNum(e.price)}</strong>${prevText}
+            </div>
+            ${reasonText}
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error("Failed to load alert history:", e);
+    }
+  }
+
+  async function resetAlertHistory() {
+    try {
+      await fetch('/api/alerts/reset', { method: 'POST' });
+      loadAlerts();
+      loadAlertHistory();
+    } catch (e) {
+      console.error("Failed to reset alerts:", e);
     }
   }
   let stockChartInstance = null;
