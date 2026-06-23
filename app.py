@@ -594,6 +594,83 @@ def retirement():
 
 
 
+# ---------------- MULTI-LANGUAGE VOICE ASSISTANT ----------------
+from utils.voice_assistant import MultiLanguageVoiceAssistant
+
+voice_assistant = MultiLanguageVoiceAssistant(client)
+
+@app.route('/voice-assistant')
+@login_required
+def voice_assistant_page():
+    """Voice Assistant Page"""
+    return render_template('voice_assistant.html', active_page='voice_assistant')
+
+@app.route('/api/voice/transcribe', methods=['POST'])
+@login_required
+def transcribe_voice():
+    """Transcribe voice from uploaded audio file"""
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+        
+        audio_file = request.files['audio']
+        if audio_file.filename == '':
+            return jsonify({'error': 'No audio file selected'}), 400
+        
+        # Save audio file temporarily
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
+            audio_file.save(tmp.name)
+            tmp_path = tmp.name
+        
+        # Transcribe
+        result = voice_assistant.transcribe_voice(tmp_path)
+        
+        # Clean up
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        
+        if result['success']:
+            # Parse command
+            parsed = voice_assistant.parse_command(result['text'], result['language'])
+            result['parsed'] = parsed
+            
+            # Execute command
+            execution = voice_assistant.execute_command(parsed)
+            result['execution'] = execution
+            
+            # Synthesize voice response
+            audio_response = voice_assistant.synthesize_voice(
+                execution.get('response', ''),
+                result['language']
+            )
+            result['audio_response'] = audio_response
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/voice/test', methods=['GET'])
+@login_required
+def voice_test():
+    """Test voice assistant"""
+    return jsonify({
+        'status': 'ok',
+        'languages': voice_assistant.languages,
+        'sample_commands': [
+            'Transfer 500 to savings',
+            'What is my balance?',
+            'Show my spending this month',
+            'Add expense 200 for food',
+            'What is my net worth?'
+        ]
+    })
+
 # ---------------- PORTFOLIO OPTIMIZER ----------------
 
 
