@@ -83,7 +83,7 @@ def get_stock_price(symbol):
             "symbol": symbol,
             "price": round(price, 2),
             "history": history_data,
-            "Predicted Price":predicted_tomorrow.get("Predicted Price",0)
+            "Predicted Price":predicted_tomorrow.get("Predicted Price",0),
             "metrics": metrics,
             "news": news_data
         }
