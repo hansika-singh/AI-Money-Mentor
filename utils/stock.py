@@ -2,8 +2,6 @@ import yfinance as yf
 import re
 import time
 import pandas as pd
-import os
-import joblib
 
 STOCK_CACHE = {}
 CACHE_EXPIRY = 600  # 10 minutes in seconds
@@ -85,6 +83,7 @@ def get_stock_price(symbol):
             "symbol": symbol,
             "price": round(price, 2),
             "history": history_data,
+            "Predicted Price":predicted_tomorrow.get("Predicted Price",0)
             "metrics": metrics,
             "news": news_data
         }
@@ -138,21 +137,21 @@ def get_stock_dividends(symbol):
         print(f"Error fetching dividends for {symbol}: {e}")
         return []
 #-------stock predictor --------#
-try:
-  model=joblib.load("stock_xgb")
-  print("Imported")
-except:
-    model=None
-    print("Not imported")
 def predict_stock(symbol):
-    symbol = symbol.strip().upper()
+    
+    symbol = symbol.strip().upper().replace("$", "")
     if not symbol or not re.match(r"^[A-Z0-9.\-_]+$", symbol):
       return {"error": "Invalid stock symbol format"}
-    
     ticker = yf.Ticker(symbol)
     df = ticker.history(period="60d", interval="1d")
+    if df.empty and "." not in symbol:
+        symbol = symbol + ".NS"
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period="60d", interval="1d")
+            
     if df.empty:
-        raise ValueError(f"History coukd not be found for {symbol}")
+        raise ValueError(f"History could not be found for {symbol}")
+      
     df=df.reset_index()
     df["SMA_7"] = df["Close"].rolling(window=7).mean()
     df["SMA_30"] = df["Close"].rolling(window=30).mean()
@@ -171,21 +170,40 @@ def predict_stock(symbol):
     df["Sentiment_Score"]=0.0
     latest_data=df.iloc[-1]
     today_close=latest_data["Close"]
-    feature_columns = [
-        "SMA_7",
-        "SMA_30",
-        "EMA_12",
-        "EMA_26",
-        "RSI",
-        "MACD",
-        "Bollinger_Upper",
-        "Bollinger_Lower",
-        "Sentiment_Score",
-    ]
-    X_live = pd.DataFrame([latest_data[feature_columns]])
+
+    #-----rules------#
+    score=0
+    if latest_data["SMA_7"]>latest_data["SMA_30"]:
+        score+=1
+    else:
+        score-=1
+        
+    if latest_data["RSI"]<30:
+        score+=1
+    elif latest_data["RSI"]>70:
+        score-=1
+
+    if latest_data["MACD"]>0:
+        score+=1
+    else:
+        score-=1
+
+    if latest_data["Bollinger_Upper"]<latest_data["Close"]:
+        score-=1
+    elif latest_data["Bollinger_Lower"]>latest_data["Close"]:
+        score+=1
+
+    if latest_data["EMA_12"]>latest_data["EMA_26"]:
+        score+=1
+    else:
+        score-=1
+
+    signal=score/5
+    MAX_BOUND=0.05
     try:
-      predicted_return=model.predict(X_live)[0]
-      predicted_tomorrow_price = float(today_close * (1 + predicted_return))
+        predicted_return = signal*MAX_BOUND
+        predicted_tomorrow_price = float(today_close*(1+predicted_return))
+        print(predicted_return)
     except Exception as e:
         print(f"There is some error:{e}")
         predicted_tomorrow_price=0
