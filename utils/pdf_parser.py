@@ -2,7 +2,7 @@ import pdfplumber
 import os
 import re
 import json
-from groq import Groq
+from groq import Groq, GroqError
 
 def extract_income(file):
     try:
@@ -43,27 +43,34 @@ def extract_income(file):
                 {doc_text}
                 """
                 
-                res = client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful, precise JSON-only output assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.1
-                )
-                
-                content = res.choices[0].message.content.strip()
-                
-                # Clean potential markdown wrappers
-                if content.startswith("```"):
-                    content = re.sub(r"^```(?:json)?\n", "", content)
-                    content = re.sub(r"\n```$", "", content)
-                
-                parsed_data = json.loads(content)
-                return parsed_data
-                
-            except Exception as llm_err:
-                print("LLM parsing error, falling back to regex:", llm_err)
+                try:
+                    res = client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful, precise JSON-only output assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.1
+                    )
+                    
+                    content = res.choices[0].message.content.strip()
+                    
+                    # Clean potential markdown wrappers
+                    if content.startswith("```"):
+                        content = re.sub(r"^```(?:json)?\n", "", content)
+                        content = re.sub(r"\n```$", "", content)
+                    
+                    parsed_data = json.loads(content)
+                    return parsed_data
+                    
+                except GroqError as groq_err:
+                    print(f"Groq API error during PDF parsing: {groq_err}")
+                    
+                except json.JSONDecodeError as json_err:
+                    print(f"JSON parsing error from LLM response: {json_err}")
+                    
+                except Exception as llm_err:
+                    print(f"LLM parsing error: {llm_err}")
                 
         # Regex Fallback
         result = {
@@ -125,4 +132,4 @@ def extract_income(file):
         return result
 
     except Exception as e:
-        return {"error": f"Failed to parse PDF: {str(e)}"}
+        return {"error": f"Failed to parse PDF: {str(e)}"}

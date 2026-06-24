@@ -1,4 +1,4 @@
-from groq import Groq
+from groq import Groq, GroqError
 import os
 from dotenv import load_dotenv
 
@@ -12,28 +12,42 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY", "YOUR_API_KEY"))
 # SIP AGENT
 # -----------------------
 def sip_agent(query):
-    response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",   # fast & free
-        messages=[
-            {"role": "system", "content": "You are a SIP investment advisor for India."},
-            {"role": "user", "content": query}
-        ]
-    )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",   # fast & free
+            messages=[
+                {"role": "system", "content": "You are a SIP investment advisor for India."},
+                {"role": "user", "content": query}
+            ]
+        )
+        return response.choices[0].message.content
+    except GroqError as e:
+        print(f"Groq API Error in sip_agent: {e}")
+        return "Sorry, I'm unable to process your SIP query at the moment due to API issues. Please try again later."
+    except Exception as e:
+        print(f"Unexpected error in sip_agent: {e}")
+        return "An unexpected error occurred. Please try again later."
 
 
 # -----------------------
 # TAX AGENT
 # -----------------------
 def tax_agent(query):
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {"role": "system", "content": "You are a tax advisor for India."},
-            {"role": "user", "content": query}
-        ]
-    )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "system", "content": "You are a tax advisor for India."},
+                {"role": "user", "content": query}
+            ]
+        )
+        return response.choices[0].message.content
+    except GroqError as e:
+        print(f"Groq API Error in tax_agent: {e}")
+        return "Sorry, I'm unable to process your tax query at the moment due to API issues. Please try again later."
+    except Exception as e:
+        print(f"Unexpected error in tax_agent: {e}")
+        return "An unexpected error occurred. Please try again later."
 
 
 # -----------------------
@@ -50,31 +64,41 @@ def route_query(query):
     Query: {query}
     """
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[{"role": "user", "content": routing_prompt}]
-    )
-
-    decision = response.choices[0].message.content.strip().upper()
-
-    return decision
-
+    try:
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": routing_prompt}]
+        )
+        decision = response.choices[0].message.content.strip().upper()
+        return decision
+    except GroqError as e:
+        print(f"Groq API Error in route_query: {e}")
+        return "ERROR"
+    except Exception as e:
+        print(f"Unexpected error in route_query: {e}")
+        return "ERROR"
 
 # -----------------------
 # MAIN AGENT SYSTEM
 # -----------------------
 def agent(query):
-    decision = route_query(query)
+    try:
+        decision = route_query(query)
 
-    if "SIP" in decision:
-        return sip_agent(query)
+        if decision == "ERROR":
+            return "Sorry, I'm experiencing technical difficulties. Please try again later."
 
-    elif "TAX" in decision:
-        return tax_agent(query)
+        if "SIP" in decision:
+            return sip_agent(query)
 
-    else:
-        return "Sorry, I can help with SIP or Tax queries only."
+        elif "TAX" in decision:
+            return tax_agent(query)
 
+        else:
+            return "Sorry, I can help with SIP or Tax queries only."
+    except Exception as e:
+        print(f"Unexpected error in agent: {e}")
+        return "An unexpected error occurred. Please try again later."
 
 # -----------------------
 # TEST

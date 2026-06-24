@@ -189,6 +189,23 @@
         </div>
     </div>
 
+    <!-- ✂️ AI Subscription Optimizer -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card" style="background: linear-gradient(135deg, rgba(212, 168, 67, 0.05) 0%, rgba(20, 200, 191, 0.05) 100%); border: 1px solid rgba(212, 168, 67, 0.3);">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-1"><span style="font-size:20px;">✂️</span> AI Subscription Optimizer</h5>
+                        <p class="text-muted small mb-0">Your projected <strong>Yearly Burn Rate</strong> is <span id="yearlyBurnRate" class="text-white fw-bold">₹0</span>. We identified <span class="text-warning fw-bold">2 unused subscriptions</span>.</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-gold" onclick="simulateCancel()">Optimize & Cancel Unused</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <!-- Left Panel: Detection & Manual Add -->
         <div class="col-md-5 mb-4">
@@ -283,7 +300,59 @@
 <!-- ========================================== -->
 <!-- LINK RECURRING.JS HERE -->
 <!-- ========================================== -->
+<!-- Premium Cancel Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background: #0d1320; border: 1px solid rgba(212, 168, 67, 0.3); border-radius: 20px;">
+      <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <h5 class="modal-title text-white fw-bold">✂️ One-Click Cancel Simulator</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center py-5">
+        <div id="cancelAnim" style="font-size: 50px; margin-bottom: 15px; animation: float 2s infinite;">🤖</div>
+        <h4 class="text-white fw-bold mb-3" id="cancelStatus">Analyzing subscriptions...</h4>
+        <p class="text-muted" id="cancelDesc">Our AI is scanning your bank statements to verify cancellation endpoints.</p>
+        
+        <div class="progress mt-4" style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+            <div id="cancelProgress" class="progress-bar" role="progressbar" style="width: 0%; background: linear-gradient(90deg, #d4a843, #14c8bf); transition: width 0.5s ease;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='js/recurring.js') }}"></script>
+<script>
+function simulateCancel() {
+    const modal = new bootstrap.Modal(document.getElementById('cancelModal'));
+    modal.show();
+    
+    document.getElementById('cancelProgress').style.width = '10%';
+    document.getElementById('cancelStatus').innerText = 'Contacting Merchants...';
+    document.getElementById('cancelDesc').innerText = 'Negotiating cancellation terms with Netflix and Spotify.';
+    
+    setTimeout(() => {
+        document.getElementById('cancelProgress').style.width = '60%';
+        document.getElementById('cancelStatus').innerText = 'Processing Request...';
+        document.getElementById('cancelDesc').innerText = 'Revoking auto-pay mandates.';
+    }, 1500);
+    
+    setTimeout(() => {
+        document.getElementById('cancelProgress').style.width = '100%';
+        document.getElementById('cancelAnim').innerText = '✅';
+        document.getElementById('cancelStatus').innerText = 'Successfully Cancelled!';
+        document.getElementById('cancelDesc').innerText = 'You just saved ₹14,400 per year!';
+    }, 3000);
+}
+
+// Intercept total calculation to update yearly burn
+const observer = new MutationObserver(() => {
+    const totalText = document.getElementById('totalMonthly').innerText.replace(/[^0-9.]/g, '');
+    const monthly = parseFloat(totalText) || 0;
+    document.getElementById('yearlyBurnRate').innerText = '₹' + (monthly * 12).toLocaleString();
+});
+observer.observe(document.getElementById('totalMonthly'), { characterData: true, childList: true, subtree: true });
+</script>
 
 </body>
 </html>

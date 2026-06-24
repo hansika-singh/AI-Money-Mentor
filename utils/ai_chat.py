@@ -1,4 +1,4 @@
-from groq import Groq
+from groq import Groq, GroqError
 import os
 from dotenv import load_dotenv
 
@@ -19,6 +19,9 @@ def get_ai_reply(message):
 
         return res.choices[0].message.content
 
+    except GroqError as e:
+        print(f"🔥 GROQ API ERROR: {e}")
+        return "AI service encountered an API error. Please check your GROQ_API_KEY configuration and try again."
     except Exception as e:
-        print("🔥 GROQ ERROR:", e)   # IMPORTANT
+        print(f"🔥 UNEXPECTED ERROR: {e}")
         return "AI service is currently unavailable."
