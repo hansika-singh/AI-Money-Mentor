@@ -1,6 +1,7 @@
 import yfinance as yf
 import re
 import time
+import pandas as pd
 
 STOCK_CACHE = {}
 CACHE_EXPIRY = 600  # 10 minutes in seconds
@@ -76,11 +77,13 @@ def get_stock_price(symbol):
                 news_data = news
         except Exception:
             pass
+        predicted_tomorrow = predict_stock(symbol)
 
         ret = {
             "symbol": symbol,
             "price": round(price, 2),
             "history": history_data,
+            "Predicted Price":predicted_tomorrow.get("Predicted Price",0),
             "metrics": metrics,
             "news": news_data
         }
@@ -133,4 +136,80 @@ def get_stock_dividends(symbol):
     except Exception as e:
         print(f"Error fetching dividends for {symbol}: {e}")
         return []
+#-------stock predictor --------#
+def predict_stock(symbol):
+    
+    symbol = symbol.strip().upper().replace("$", "")
+    if not symbol or not re.match(r"^[A-Z0-9.\-_]+$", symbol):
+      return {"error": "Invalid stock symbol format"}
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period="60d", interval="1d")
+    if df.empty and "." not in symbol:
+        symbol = symbol + ".NS"
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period="60d", interval="1d")
+            
+    if df.empty:
+        raise ValueError(f"History could not be found for {symbol}")
+      
+    df=df.reset_index()
+    df["SMA_7"] = df["Close"].rolling(window=7).mean()
+    df["SMA_30"] = df["Close"].rolling(window=30).mean()
+    df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
+    df["EMA_26"] = df["Close"].ewm(span=26, adjust=False).mean()
+    df["MACD"] = df["EMA_12"] - df["EMA_26"]
+    delta = df["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / (loss + 1e-9)
+    df["RSI"] = 100 - (100 / (1 + rs))
+    df["BB_Middle"] = df["Close"].rolling(window=20).mean()
+    df["BB_Std"] = df["Close"].rolling(window=20).std()
+    df["Bollinger_Upper"] = df["BB_Middle"] + (df["BB_Std"] * 2)
+    df["Bollinger_Lower"] = df["BB_Middle"] - (df["BB_Std"] * 2)
+    df["Sentiment_Score"]=0.0
+    latest_data=df.iloc[-1]
+    today_close=latest_data["Close"]
+
+    #-----rules------#
+    score=0
+    if latest_data["SMA_7"]>latest_data["SMA_30"]:
+        score+=1
+    else:
+        score-=1
+        
+    if latest_data["RSI"]<30:
+        score+=1
+    elif latest_data["RSI"]>70:
+        score-=1
+
+    if latest_data["MACD"]>0:
+        score+=1
+    else:
+        score-=1
+
+    if latest_data["Bollinger_Upper"]<latest_data["Close"]:
+        score-=1
+    elif latest_data["Bollinger_Lower"]>latest_data["Close"]:
+        score+=1
+
+    if latest_data["EMA_12"]>latest_data["EMA_26"]:
+        score+=1
+    else:
+        score-=1
+
+    signal=score/5
+    MAX_BOUND=0.05
+    try:
+        predicted_return = signal*MAX_BOUND
+        predicted_tomorrow_price = float(today_close*(1+predicted_return))
+        print(predicted_return)
+    except Exception as e:
+        print(f"There is some error:{e}")
+        predicted_tomorrow_price=0
+    return {"Predicted Price":predicted_tomorrow_price}
+    
+            
+    
+    
 

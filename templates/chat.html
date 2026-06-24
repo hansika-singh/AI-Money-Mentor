@@ -93,14 +93,23 @@ list_recurring_expenses
     const d = document.createElement('div');
     d.className = `msg ${role}`;
 
-    let content;
+    let content = text;
+    let chartData = null;
+    const chartRegex = /\[CHART_DATA:\s*({.*})\s*\]/is;
+    const match = content.match(chartRegex);
+    if (match) {
+        try {
+            chartData = JSON.parse(match[1]);
+            content = content.replace(chartRegex, '');
+        } catch(e) {
+            console.error("Failed to parse chart data", e);
+        }
+    }
 
     if (role === 'bot') {
         content = DOMPurify.sanitize(
-            marked.parse(text || '')
+            marked.parse(content || '')
         );
-    } else {
-        content = text;
     }
 
     d.innerHTML = `
@@ -122,6 +131,33 @@ list_recurring_expenses
                 });
             };
         }
+    }
+
+    if (chartData) {
+        const canvasId = 'chart-' + Math.random().toString(36).substr(2, 9);
+        const chartWrapper = document.createElement('div');
+        chartWrapper.style.margin = '16px 0';
+        chartWrapper.style.background = 'rgba(15, 22, 38, 0.6)';
+        chartWrapper.style.border = '1px solid rgba(212, 168, 67, 0.2)';
+        chartWrapper.style.padding = '12px';
+        chartWrapper.style.borderRadius = '12px';
+        chartWrapper.innerHTML = `<canvas id="${canvasId}" style="max-height: 250px;"></canvas>`;
+        d.appendChild(chartWrapper);
+        
+        // Wait for next tick so canvas is in DOM
+        setTimeout(() => {
+            new Chart(document.getElementById(canvasId).getContext('2d'), {
+                type: chartData.type || 'pie',
+                data: chartData.data,
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#eef0f5' } }
+                    }
+                }
+            });
+        }, 50);
     }
 
     box.appendChild(d);

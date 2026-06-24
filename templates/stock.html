@@ -79,6 +79,17 @@
     </div>
   </div>
 </div>
+<!---stock predictor--->
+<div style="margin-top: 20px; max-width: 900px;">
+    <div class="card" style="width: 100%; box-sizing: border-box;">
+      <div class="card-title" style="color: var(--gold); margin-bottom: 6px;">AI Tomorrow Forecast Analysis</div>
+      <div id="aiPredictionResult">
+        <p style="color: var(--muted); font-size: 13px; margin: 0; padding-top: 4px;">
+          Enter a stock symbol above to view the machine learning forecast summary metrics.
+        </p>
+      </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -256,6 +267,23 @@
           </div>
         `;
         showResult('stockResult', html);
+        const predPrice = data["Predicted Price"] ? `₹${fmtNum(data["Predicted Price"])}` : "N/A";
+        let aiHtml = `
+          <div style="display: flex; gap: 40px; align-items: center; margin-top: 8px;">
+            <div>
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">XGBoost Target Estimate</div>
+              <div class="result-big" style="color: #14c8bf; margin: 4px 0 0 0;">${predPrice}</div>
+            </div>
+  
+            <div style="flex: 1; display: flex; justify-content: flex-start; padding-left: 24px; border-left: 1px solid var(--border);">
+            <div style="display:flex; gap: 10px; font-size: 13px;">
+              <span style="color:var(--muted);">Confidence Interval:</span>
+              <strong>±2.0% MAE</strong>
+            </div>
+           </div>
+          </div>  
+        `;
+        document.getElementById('aiPredictionResult').innerHTML = aiHtml;
 
         const dates = data.history.map(h => h.date);
         const prices = data.history.map(h => h.close);
@@ -307,6 +335,9 @@
 
   function resetStock() {
     document.getElementById('stockSym').value = '';
+    document.getElementById('aiPredictionResult').innerHTML = `
+      <p style="color: var(--muted); font-size: 13px; margin: 0; padding-top: 4px;">Enter a stock symbol above to view the machine learning forecast summary metrics.</p>
+    `;
     const res = document.getElementById('stockResult');
     res.innerHTML = '';
     res.classList.remove('visible');

@@ -9,19 +9,29 @@ from typing import List, Dict, Optional, Tuple
 import hashlib
 import json
 
-# Document parsing
-import PyPDF2
-import pdfplumber
-from docx import Document as DocxDocument
-import openpyxl
-from PIL import Image
-import pytesseract
+try:
+    import PyPDF2
+    import pdfplumber
+    from docx import Document as DocxDocument
+    import openpyxl
+    from PIL import Image
+    import pytesseract
+except ImportError:
+    pass
 
-# RAG components
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.schema import Document
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.vectorstores import Chroma
+    from langchain.schema import Document
+except ImportError:
+    class MockClass:
+        def __init__(self, *args, **kwargs):
+            pass
+    Document = dict  # Mock Document for type hint
+    RecursiveCharacterTextSplitter = MockClass
+    HuggingFaceEmbeddings = MockClass
+    Chroma = MockClass
 
 import numpy as np
 
@@ -59,9 +69,9 @@ class RAGSystem:
                 model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}
             )
-            print("✅ Embeddings initialized successfully")
+            print("Embeddings initialized successfully")
         except Exception as e:
-            print(f"⚠️ Error initializing embeddings: {e}")
+            print(f"Error initializing embeddings: {e}")
             # Fallback to a simpler approach
             self.embeddings = None
     
@@ -73,11 +83,11 @@ class RAGSystem:
                     persist_directory=self.persist_directory,
                     embedding_function=self.embeddings
                 )
-                print(f"✅ Vector store loaded from {self.persist_directory}")
+                print(f"Vector store loaded from {self.persist_directory}")
             else:
                 self.vector_store = None
         except Exception as e:
-            print(f"⚠️ Error loading vector store: {e}")
+            print(f"Error loading vector store: {e}")
             self.vector_store = None
     
     def set_client(self, client):
