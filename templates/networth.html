@@ -26,10 +26,21 @@
     <!-- ASSETS -->
     <div class="card">
       <div class="card-title">Assets (What you own)</div>
-      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px;">
-        <input type="text" id="assetName" placeholder="Asset name (e.g. HDFC Savings)" style="flex: 2;">
-        <input type="number" required min="0" id="assetAmt" placeholder="Amount (₹)" style="flex: 1.2;">
-        <input type="date" id="assetDate" required style="flex: 1.2; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <input type="text" id="assetName" placeholder="Asset name (e.g. HDFC Savings)" style="flex: 2; min-width: 150px;">
+        <input type="number" required min="0" id="assetAmt" placeholder="Amount" style="flex: 1.2; min-width: 90px;">
+        <select id="assetCurrency" style="flex: 1; min-width: 80px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+          <option value="INR" selected>INR (₹)</option>
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="JPY">JPY (¥)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+          <option value="AED">AED (د.إ)</option>
+          <option value="SGD">SGD ($)</option>
+        </select>
+        <input type="date" id="assetDate" required style="flex: 1.2; min-width: 120px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
         <button class="btn btn-gold" onclick="addNWItem('asset')">Add</button>
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text);">
@@ -48,10 +59,21 @@
     <!-- LIABILITIES -->
     <div class="card">
       <div class="card-title">Liabilities (What you owe)</div>
-      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px;">
-        <input type="text" id="liabName" placeholder="Liability name (e.g. Home Loan)" style="flex: 2;">
-        <input type="number" required min="0" id="liabAmt" placeholder="Amount (₹)" style="flex: 1.2;">
-        <input type="date" id="liabDate" required style="flex: 1.2; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+      <div class="chat-input-row" style="margin-bottom: 15px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <input type="text" id="liabName" placeholder="Liability name (e.g. Home Loan)" style="flex: 2; min-width: 150px;">
+        <input type="number" required min="0" id="liabAmt" placeholder="Amount" style="flex: 1.2; min-width: 90px;">
+        <select id="liabCurrency" style="flex: 1; min-width: 80px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+          <option value="INR" selected>INR (₹)</option>
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="JPY">JPY (¥)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+          <option value="AED">AED (د.إ)</option>
+          <option value="SGD">SGD ($)</option>
+        </select>
+        <input type="date" id="liabDate" required style="flex: 1.2; min-width: 120px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
         <button class="btn btn-gold" onclick="addNWItem('liability')">Add</button>
       </div>
       <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text);">
@@ -72,6 +94,11 @@
 
 {% block scripts %}
 <script>
+  const symbolMap = {
+    'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£',
+    'JPY': '¥', 'CAD': '$', 'AUD': '$', 'AED': 'د.إ', 'SGD': '$'
+  };
+
   async function loadNetWorth() {
     try {
       const data = await apiFetch('/net-worth', {});
@@ -91,11 +118,14 @@
             month: "short",
             year: "numeric"
           }) : 'N/A';
+          const curr = item.currency || 'INR';
+          const sym = symbolMap[curr] || curr;
+          const displayVal = curr === 'INR' ? `₹${fmtNum(item.amount)}` : `${sym}${fmtNum(item.amount)} (${curr})`;
           assetList.innerHTML += `
             <tr style="border-bottom: 1px solid var(--border);">
               <td style="padding: 8px;">${item.name}</td>
               <td style="padding: 8px; text-align: center; color: var(--muted);">${formattedDate}</td>
-              <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
+              <td style="padding: 8px; text-align: right; font-family: monospace;">${displayVal}</td>
               <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('asset', ${item.id})">✖</button></td>
             </tr>
           `;
@@ -113,11 +143,14 @@
             month: "short",
             year: "numeric"
           }) : 'N/A';
+          const curr = item.currency || 'INR';
+          const sym = symbolMap[curr] || curr;
+          const displayVal = curr === 'INR' ? `₹${fmtNum(item.amount)}` : `${sym}${fmtNum(item.amount)} (${curr})`;
           liabList.innerHTML += `
             <tr style="border-bottom: 1px solid var(--border);">
               <td style="padding: 8px;">${item.name}</td>
               <td style="padding: 8px; text-align: center; color: var(--muted);">${formattedDate}</td>
-              <td style="padding: 8px; text-align: right;">₹${fmtNum(item.amount)}</td>
+              <td style="padding: 8px; text-align: right; font-family: monospace;">${displayVal}</td>
               <td style="padding: 8px; text-align: center;"><button class="btn btn-ghost" style="padding: 4px 8px; font-size: 10px;" onclick="deleteNWItem('liability', ${item.id})">✖</button></td>
             </tr>
           `;
@@ -131,14 +164,16 @@
   async function addNWItem(type) {
     const nameEl = document.getElementById(type === 'asset' ? 'assetName' : 'liabName');
     const amtEl  = document.getElementById(type === 'asset' ? 'assetAmt'  : 'liabAmt');
+    const currEl = document.getElementById(type === 'asset' ? 'assetCurrency' : 'liabCurrency');
     const dateEl = document.getElementById(type === 'asset' ? 'assetDate' : 'liabDate');
     const name   = nameEl.value.trim();
     const amount = parseFloat(amtEl.value);
+    const currency = currEl.value;
     const date   = dateEl.value;
     if (!name || !amount || amount <= 0 || !date) { alert('Enter a valid name, amount and date.'); return; }
     try {
       const url = type === 'asset' ? '/add-asset' : '/add-liability';
-      await apiFetch(url, { name, amount, date });
+      await apiFetch(url, { name, amount, currency, date });
       nameEl.value = '';
       amtEl.value  = '';
       dateEl.value = new Date().toISOString().split('T')[0];

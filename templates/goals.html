@@ -9,11 +9,22 @@
   <div class="dash-grid" style="grid-template-columns: 1fr; margin-bottom: 20px;">
     <div class="card">
       <div class="card-title">Add New Goal</div>
-      <div class="chat-input-row" style="gap: 10px;">
-        <input type="text" id="goalName" placeholder="Goal name (e.g., Emergency Fund)" style="flex: 2;">
-        <input type="number" id="goalTarget" placeholder="Target amount (₹)" min="0" step="0.01" style="flex: 1;">
-        <input type="number" id="goalCurrent" placeholder="Current saved (₹)" min="0" step="0.01" style="flex: 1;" value="0">
-        <input type="month" id="goalDate" style="flex: 1;">
+      <div class="chat-input-row" style="gap: 10px; flex-wrap: wrap;">
+        <input type="text" id="goalName" placeholder="Goal name (e.g., Emergency Fund)" style="flex: 2; min-width: 150px;">
+        <input type="number" id="goalTarget" placeholder="Target amount" min="0" step="0.01" style="flex: 1; min-width: 100px;">
+        <input type="number" id="goalCurrent" placeholder="Current saved" min="0" step="0.01" style="flex: 1; min-width: 100px;" value="0">
+        <select id="goalCurrency" style="flex: 1; min-width: 80px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+          <option value="INR" selected>INR (₹)</option>
+          <option value="USD">USD ($)</option>
+          <option value="EUR">EUR (€)</option>
+          <option value="GBP">GBP (£)</option>
+          <option value="JPY">JPY (¥)</option>
+          <option value="CAD">CAD ($)</option>
+          <option value="AUD">AUD ($)</option>
+          <option value="AED">AED (د.إ)</option>
+          <option value="SGD">SGD ($)</option>
+        </select>
+        <input type="month" id="goalDate" style="flex: 1; min-width: 120px;">
         <button class="btn btn-gold" onclick="addGoal()">Add Goal</button>
       </div>
     </div>
@@ -41,6 +52,11 @@
         return;
       }
 
+      const symbolMap = {
+        'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£',
+        'JPY': '¥', 'CAD': '$', 'AUD': '$', 'AED': 'د.إ', 'SGD': '$'
+      };
+
       goalsListEl.innerHTML = data.goals.map(goal => {
         const remaining = goal.target_amount - goal.current_amount;
         const targetDt = new Date(goal.target_date + '-01');
@@ -51,6 +67,9 @@
 
         const pct = goal.progress_percent > 100 ? 100 : goal.progress_percent;
         const pctColor = pct >= 100 ? '#22c55e' : (pct >= 75 ? '#d4a843' : (pct >= 50 ? '#f59e0b' : '#ef4444'));
+
+        const curr = goal.currency || 'INR';
+        const sym = symbolMap[curr] || curr;
 
         return `
           <div class="card">
@@ -75,11 +94,11 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
               <div style="padding: 10px; background: rgba(212, 168, 67, 0.1); border-radius: 8px;">
                 <div style="font-size: 12px; color: var(--muted);">Target</div>
-                <div style="font-size: 18px; font-weight: 700; color: var(--gold);">₹${fmtNum(goal.target_amount)}</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--gold); font-family: monospace;">${sym}${fmtNum(goal.target_amount)}</div>
               </div>
               <div style="padding: 10px; background: rgba(34, 197, 94, 0.1); border-radius: 8px;">
-                <div style="font-size: 12px; color: var(--muted);">Current</div>
-                <div style="font-size: 18px; font-weight: 700; color: #22c55e;">₹${fmtNum(goal.current_amount)}</div>
+                <div style="font-size: 12px; color: var(--muted);">Saved</div>
+                <div style="font-size: 18px; font-weight: 700; color: #22c55e; font-family: monospace;">${sym}${fmtNum(goal.current_amount)}</div>
               </div>
             </div>
 
@@ -91,7 +110,7 @@
                 </div>
                 <div>
                   <span style="color: var(--muted);">Monthly Need:</span>
-                  <span style="color: var(--text); font-weight: 600;">₹${fmtNum(monthlyNeeded.toFixed(0))}</span>
+                  <span style="color: var(--text); font-weight: 600; font-family: monospace;">${sym}${fmtNum(monthlyNeeded.toFixed(0))}</span>
                 </div>
               </div>
             </div>
@@ -115,6 +134,7 @@
     const name = document.getElementById('goalName').value.trim();
     const targetAmount = parseFloat(document.getElementById('goalTarget').value);
     const currentAmount = parseFloat(document.getElementById('goalCurrent').value || 0);
+    const currency = document.getElementById('goalCurrency').value;
     const targetDate = document.getElementById('goalDate').value;
 
     if (!name || !targetAmount || targetAmount <= 0 || !targetDate) {
@@ -123,7 +143,7 @@
     }
 
     try {
-      await apiFetch('/goals', { name, target_amount: targetAmount, current_amount: currentAmount, target_date: targetDate });
+      await apiFetch('/goals', { name, target_amount: targetAmount, current_amount: currentAmount, currency, target_date: targetDate });
       document.getElementById('goalName').value = '';
       document.getElementById('goalTarget').value = '';
       document.getElementById('goalCurrent').value = '0';
@@ -136,7 +156,7 @@
   }
 
   async function editGoal(goalId) {
-    const newCurrent = prompt('Enter new current amount saved (₹):');
+    const newCurrent = prompt('Enter new current amount saved:');
     if (newCurrent === null) return;
 
     const amount = parseFloat(newCurrent);
