@@ -1,3 +1,9 @@
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 def data_input(principal, rate, time, income):
   loan_calc=compound_interest_calculation(principal, rate, time)
   emi_calc=emi_calculation(principal, rate, time)
@@ -32,6 +38,25 @@ def financial_check(emi, income):
   else:
     zone=-1
   return {"Ratio":ratio,"Zone":zone}
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY", "YOUR_API_KEY"))
+
+
+def financial_advice(message):
+    try:
+        res = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "You are a loan advisor, based on the info provided, give the insights whether the user should take a loan or not. What should they improve to make the loan suitable for them? Be precise and accurate."},
+                {"role": "user", "content": message}
+            ]
+        )
+
+        return res.choices[0].message.content
+
+    except Exception as e:
+        print("🔥 GROQ ERROR:", e)   # IMPORTANT
+        return "AI service is currently unavailable."
 
   
   
