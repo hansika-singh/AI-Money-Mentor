@@ -1273,6 +1273,7 @@ class NotificationPreference(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+
         # ============================================
 # MFA MODELS
 # ============================================
@@ -1355,6 +1356,7 @@ class SecurityEvent(db.Model):
             'details': self.details,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
 
         }     
 
