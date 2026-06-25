@@ -758,4 +758,124 @@ class FraudAlert(db.Model):
             'is_read': self.is_read,
             'is_resolved': self.is_resolved,
             'created_at': self.created_at.isoformat() if self.created_at else None
-        }     
+        }   
+
+# ============================================
+# GOAL-BASED INVESTMENT PLANNER MODELS
+# ============================================
+
+class InvestmentGoal(db.Model):
+    """Investment Goal Model"""
+    __tablename__ = 'investment_goals'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(20), nullable=False)  # short_term, medium_term, long_term
+    target_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(15, 2), default=0.00)
+    priority = db.Column(db.Integer, default=3)  # 1-5 (1=highest)
+    timeframe = db.Column(db.Integer, nullable=False)  # months
+    target_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default='ACTIVE')  # ACTIVE, COMPLETED, PAUSED
+    icon = db.Column(db.String(50), default='🎯')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    user = db.relationship("User", backref="investment_goals")
+    allocations = db.relationship("GoalAllocation", backref="goal", lazy=True, cascade='all, delete-orphan')
+    contributions = db.relationship("GoalContribution", backref="goal", lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        progress = (float(self.current_amount) / float(self.target_amount) * 100) if float(self.target_amount) > 0 else 0
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'category': self.category,
+            'target_amount': float(self.target_amount),
+            'current_amount': float(self.current_amount),
+            'progress': round(progress, 2),
+            'priority': self.priority,
+            'timeframe': self.timeframe,
+            'target_date': self.target_date.isoformat() if self.target_date else None,
+            'status': self.status,
+            'icon': self.icon,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'shortfall': round(float(self.target_amount) - float(self.current_amount), 2),
+            'monthly_required': self.calculate_monthly_required()
+        }
+    
+    def calculate_monthly_required(self):
+        remaining = float(self.target_amount) - float(self.current_amount)
+        if remaining <= 0 or self.timeframe <= 0:
+            return 0
+        return round(remaining / self.timeframe, 2)
+
+
+class GoalAllocation(db.Model):
+    """Investment Allocation for Goals"""
+    __tablename__ = 'goal_allocations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('investment_goals.id'), nullable=False)
+    asset_type = db.Column(db.String(50), nullable=False)  # equity, debt, gold, real_estate, cash
+    percentage = db.Column(db.Numeric(5, 2), nullable=False)  # Percentage of allocation
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'asset_type': self.asset_type,
+            'percentage': float(self.percentage)
+        }
+
+
+class GoalContribution(db.Model):
+    """Contributions to Goals"""
+    __tablename__ = 'goal_contributions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('investment_goals.id'), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    source = db.Column(db.String(50), default='manual')  # manual, auto, sip
+    note = db.Column(db.String(200))
+    contributed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'amount': float(self.amount),
+            'source': self.source,
+            'note': self.note,
+            'contributed_at': self.contributed_at.isoformat() if self.contributed_at else None
+        }
+
+
+class GoalRecommendation(db.Model):
+    """AI-generated Recommendations for Goals"""
+    __tablename__ = 'goal_recommendations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('investment_goals.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # allocation, contribution, timeline, priority
+    message = db.Column(db.Text, nullable=False)
+    suggestion = db.Column(db.Text)
+    is_applied = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'type': self.type,
+            'message': self.message,
+            'suggestion': self.suggestion,
+            'is_applied': self.is_applied,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
