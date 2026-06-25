@@ -976,6 +976,112 @@ class CoupleAlert(db.Model):
             'is_read': self.is_read,
             'created_at': self.created_at.isoformat() if self.created_at else None
 
+        }
+
+
+   # ============================================
+# BANK INTEGRATION MODELS
+# ============================================
+
+class BankConnection(db.Model):
+    """Bank Connection Model"""
+    __tablename__ = 'bank_connections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    provider = db.Column(db.String(50), nullable=False)  # upi, netbanking, card
+    account_name = db.Column(db.String(100), nullable=False)
+    account_number = db.Column(db.String(50), nullable=True)
+    access_token = db.Column(db.Text, nullable=True)
+    refresh_token = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    last_sync = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship("User", backref="bank_connections")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'provider': self.provider,
+            'account_name': self.account_name,
+            'account_number': self.account_number[-4:] if self.account_number else None,
+            'is_active': self.is_active,
+            'last_sync': self.last_sync.isoformat() if self.last_sync else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class BankTransaction(db.Model):
+    """Bank Transaction Model"""
+    __tablename__ = 'bank_transactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    connection_id = db.Column(db.Integer, db.ForeignKey('bank_connections.id'), nullable=False)
+    transaction_id = db.Column(db.String(100), unique=True, nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    currency = db.Column(db.String(10), default='INR')
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), nullable=True)
+    merchant = db.Column(db.String(100), nullable=True)
+    transaction_date = db.Column(db.DateTime, nullable=False)
+    posted_date = db.Column(db.DateTime, nullable=True)
+    is_anomaly = db.Column(db.Boolean, default=False)
+    anomaly_reason = db.Column(db.String(200), nullable=True)
+    is_flagged = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship("User", backref="bank_transactions")
+    connection = db.relationship("BankConnection", backref="transactions")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'transaction_id': self.transaction_id,
+            'amount': float(self.amount),
+            'currency': self.currency,
+            'description': self.description,
+            'category': self.category,
+            'merchant': self.merchant,
+            'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'is_anomaly': self.is_anomaly,
+            'anomaly_reason': self.anomaly_reason,
+            'is_flagged': self.is_flagged
+        }
+
+
+class FraudAlert(db.Model):
+    """Fraud Alert Model"""
+    __tablename__ = 'fraud_alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('bank_transactions.id'), nullable=True)
+    alert_type = db.Column(db.String(50), nullable=False)  # high_amount, unusual_category, suspicious_pattern, etc.
+    severity = db.Column(db.String(20), default='medium')  # low, medium, high
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    is_resolved = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    
+    user = db.relationship("User", backref="fraud_alerts")
+    transaction = db.relationship("BankTransaction", backref="alerts")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'alert_type': self.alert_type,
+            'severity': self.severity,
+            'message': self.message,
+            'is_read': self.is_read,
+            'is_resolved': self.is_resolved,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }     
+
+
 
 class MilestoneNotification(db.Model):
     __tablename__ = "milestone_notifications"
@@ -1034,3 +1140,8 @@ class SipSchedule(db.Model):
             "total_invested": self.total_invested
 
         }
+
+
+
+        }
+
