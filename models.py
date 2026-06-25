@@ -79,6 +79,7 @@ class Portfolio(db.Model):
     buy_date = db.Column(db.String(40), nullable=False)
     investment_type = db.Column(db.String(20), default="stock")
     notes = db.Column(db.String(200), nullable=True)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self, current_price=None):
@@ -95,6 +96,7 @@ class Portfolio(db.Model):
             "name": self.name,
             "quantity": self.quantity,
             "buy_price": self.buy_price,
+            "currency": self.currency,
             "buy_date": self.buy_date,
             "current_price": current_price,
             "current_value": round(current_value, 2),
@@ -112,7 +114,12 @@ class PriceAlert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     symbol = db.Column(db.String(20), nullable=False)
     target_price = db.Column(db.Float, nullable=False)
-    condition = db.Column(db.String(10), default="above")
+    condition = db.Column(db.String(20), default="above")
+    operator_type = db.Column(db.String(20), default="above")
+    cooldown_days = db.Column(db.Integer, default=0)
+    duration_days = db.Column(db.Integer, default=0)
+    last_checked_price = db.Column(db.Float, nullable=True)
+    consecutive_polls_met = db.Column(db.Integer, default=0)
     is_triggered = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -127,6 +134,9 @@ class PriceAlert(db.Model):
             "symbol": self.symbol,
             "target_price": self.target_price,
             "condition": self.condition,
+            "operator_type": self.operator_type,
+            "cooldown_days": self.cooldown_days,
+            "duration_days": self.duration_days,
             "is_triggered": self.is_triggered,
             "last_check_error": self.last_check_error,
             "last_triggered_at": self.last_triggered_at.isoformat() if self.last_triggered_at else None,
@@ -142,9 +152,11 @@ class PriceAlertEvent(db.Model):
 
     # Price snapshot at the moment of trigger
     price = db.Column(db.Float, nullable=False)
+    prev_price = db.Column(db.Float, nullable=True)
+    reason = db.Column(db.String(250), nullable=True)
 
     # Store condition + symbol for easier querying/debugging
-    condition = db.Column(db.String(10), nullable=False)
+    condition = db.Column(db.String(20), nullable=False)
     symbol = db.Column(db.String(20), nullable=False)
 
     def to_dict(self):
@@ -153,6 +165,8 @@ class PriceAlertEvent(db.Model):
             "alert_id": self.alert_id,
             "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
             "price": self.price,
+            "prev_price": self.prev_price,
+            "reason": self.reason,
             "condition": self.condition,
             "symbol": self.symbol,
         }
@@ -175,12 +189,14 @@ class Expense(db.Model):
     is_recurring = db.Column(db.Boolean, default=False)
     is_anomaly = db.Column(db.Boolean, default=False)
     merchant_name = db.Column(db.String(200), nullable=True)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
 
     def to_dict(self):
         return {
             "id": self.id,
             "category": self.category,
             "amount": self.amount,
+            "currency": self.currency,
             "date": self.date,
             "ai_confidence": self.ai_confidence,
             "user_corrected": self.user_corrected,
@@ -198,6 +214,7 @@ class Asset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
     date = db.Column(db.String(40), nullable=False, default=lambda: datetime.utcnow().strftime("%Y-%m-%d"))
 
     def to_dict(self):
@@ -205,7 +222,7 @@ class Asset(db.Model):
         # row by stable PK rather than by positional list index. Using a
         # positional index was the root cause of the negative-index silent
         # deletion and out-of-range IndexError bugs (issue #125).
-        return {"id": self.id, "name": self.name, "amount": self.amount, "user_id": self.user_id, "date": self.date}
+        return {"id": self.id, "name": self.name, "amount": self.amount, "currency": self.currency, "user_id": self.user_id, "date": self.date}
 
 
 class Liability(db.Model):
@@ -215,11 +232,12 @@ class Liability(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
     date = db.Column(db.String(40), nullable=False, default=lambda: datetime.utcnow().strftime("%Y-%m-%d"))
 
     def to_dict(self):
         # Same fix as Asset.to_dict -- returns the real PK, not a list index.
-        return {"id": self.id, "name": self.name, "amount": self.amount, "user_id": self.user_id, "date": self.date}
+        return {"id": self.id, "name": self.name, "amount": self.amount, "currency": self.currency, "user_id": self.user_id, "date": self.date}
 
 
 class BudgetLimit(db.Model):
@@ -229,12 +247,14 @@ class BudgetLimit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     category = db.Column(db.String(120), nullable=False)
     limit_amount = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
 
     def to_dict(self):
         return {
             "id": self.id,
             "category": self.category,
             "limit_amount": self.limit_amount,
+            "currency": self.currency,
             "user_id": self.user_id
         }
 
@@ -247,6 +267,7 @@ class BudgetAlert(db.Model):
     category = db.Column(db.String(120), nullable=False)
     year_month = db.Column(db.String(7), nullable=False)  # e.g., "2026-06"
     threshold = db.Column(db.Integer, nullable=False)    # 80, 90, or 100
+    currency = db.Column(db.String(10), default='INR', nullable=False)
     triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -256,6 +277,7 @@ class BudgetAlert(db.Model):
             "year_month": self.year_month,
             "threshold": self.threshold,
             "triggered_at": self.triggered_at.isoformat(),
+            "currency": self.currency,
             "user_id": self.user_id
         }
 
@@ -266,6 +288,7 @@ class FinancialGoal(db.Model):
     name = db.Column(db.String(120), nullable=False)
     target_amount = db.Column(db.Float, nullable=False)
     current_amount = db.Column(db.Float, nullable=False, default=0.0)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
     target_date = db.Column(db.String(10), nullable=False)  # YYYY-MM
 
     # Optional AI-generated plan/tactics
@@ -281,6 +304,7 @@ class FinancialGoal(db.Model):
             "name": self.name,
             "target_amount": self.target_amount,
             "current_amount": self.current_amount,
+            "currency": self.currency,
             "progress_percent": round(progress_percent, 2),
             "target_date": self.target_date,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -332,6 +356,79 @@ class WeeklyDigestLog(db.Model):
             "snapshot_net_worth_start": self.snapshot_net_worth_start,
             "snapshot_net_worth_end": self.snapshot_net_worth_end,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+class FxRateCache(db.Model):
+    __tablename__ = "fx_rate_cache"
+    id = db.Column(db.Integer, primary_key=True)
+    from_currency = db.Column(db.String(10), nullable=False)
+    to_currency = db.Column(db.String(10), nullable=False)
+    rate = db.Column(db.Float, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class FinancialGoalMilestone(db.Model):
+    __tablename__ = "financial_goal_milestones"
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey("financial_goals.id"), nullable=False)
+    month = db.Column(db.String(7), nullable=False)  # e.g., "2026-06"
+    target_amount_for_month = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default="planned")  # planned, completed
+
+class RecurringIncome(db.Model):
+    __tablename__ = 'recurring_incomes'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # Salary, Rent, Freelance, Other
+    source = db.Column(db.String(100), nullable=False)    # Employer/Source Name
+    frequency = db.Column(db.String(20), nullable=False)   # daily, weekly, monthly, quarterly, yearly
+    start_date = db.Column(db.Date, nullable=False)
+    next_due_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_processed = db.Column(db.Date, nullable=True)
+
+    user = db.relationship("User", backref="recurring_incomes")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'amount': self.amount,
+            'category': self.category,
+            'source': self.source,
+            'frequency': self.frequency,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'next_due_date': self.next_due_date.isoformat() if self.next_due_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'is_active': self.is_active,
+            'currency': self.currency
+        }
+
+class IncomeOccurrence(db.Model):
+    __tablename__ = 'income_occurrences'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    recurring_income_id = db.Column(db.Integer, db.ForeignKey('recurring_incomes.id'), nullable=True)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    source = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="income_occurrences")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'recurring_income_id': self.recurring_income_id,
+            'amount': self.amount,
+            'category': self.category,
+            'source': self.source,
+            'date': self.date.isoformat() if self.date else None,
+            'currency': self.currency
         }
 
 # ============================================
@@ -437,6 +534,8 @@ class LedgerEntry(db.Model):
             'amount': float(self.amount),
             'description': self.description,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None
+
+
         }
 
         # ============================================
@@ -655,6 +754,228 @@ class CoupleAlert(db.Model):
             'message': self.message,
             'is_read': self.is_read,
             'created_at': self.created_at.isoformat() if self.created_at else None
+
+
+        }
+
+
+        # ============================================
+# COUPLE FINANCE MODELS
+# ============================================
+
+class Couple(db.Model):
+    """Couple Relationship Model"""
+    __tablename__ = 'couples'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    status = db.Column(db.String(20), default='PENDING')  # PENDING, ACTIVE, DECLINED, UNLINKED
+    invitation_token = db.Column(db.String(100), unique=True, nullable=True)
+    invitation_expires = db.Column(db.DateTime, nullable=True)
+    linked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user1 = db.relationship("User", foreign_keys=[user1_id], backref="couple_user1")
+    user2 = db.relationship("User", foreign_keys=[user2_id], backref="couple_user2")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user1_id': self.user1_id,
+            'user2_id': self.user2_id,
+            'status': self.status,
+            'linked_at': self.linked_at.isoformat() if self.linked_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class SharedGoal(db.Model):
+    """Shared Goals for Couples"""
+    __tablename__ = 'shared_goals'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    target_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(15, 2), default=0.00)
+    deadline = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default='ACTIVE')  # ACTIVE, COMPLETED, CANCELLED
+    priority = db.Column(db.String(20), default='MEDIUM')  # LOW, MEDIUM, HIGH
+    icon = db.Column(db.String(50), default='🎯')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="shared_goals")
+    contributions = db.relationship("GoalContribution", backref="goal", lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'name': self.name,
+            'description': self.description,
+            'target_amount': float(self.target_amount),
+            'current_amount': float(self.current_amount),
+            'progress': round(float(self.current_amount) / float(self.target_amount) * 100, 2) if float(self.target_amount) > 0 else 0,
+            'deadline': self.deadline.isoformat() if self.deadline else None,
+            'status': self.status,
+            'priority': self.priority,
+            'icon': self.icon,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'contributions': [c.to_dict() for c in self.contributions]
+        }
+
+
+class GoalContribution(db.Model):
+    """Individual Contributions to Shared Goals"""
+    __tablename__ = 'goal_contributions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('shared_goals.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    note = db.Column(db.String(200))
+    contributed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship("User", backref="goal_contributions")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'user_id': self.user_id,
+            'amount': float(self.amount),
+            'note': self.note,
+            'contributed_at': self.contributed_at.isoformat() if self.contributed_at else None
+        }
+
+
+class SplitExpense(db.Model):
+    """Split Expenses for Couples"""
+    __tablename__ = 'split_expenses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    total_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    description = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50), default='Other')
+    payer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    split_type = db.Column(db.String(20), default='EQUAL')  # EQUAL, PERCENTAGE, CUSTOM
+    user1_share = db.Column(db.Numeric(15, 2), nullable=True)
+    user2_share = db.Column(db.Numeric(15, 2), nullable=True)
+    settled = db.Column(db.Boolean, default=False)
+    expense_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    settled_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="split_expenses")
+    payer = db.relationship("User", backref="paid_expenses")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'total_amount': float(self.total_amount),
+            'description': self.description,
+            'category': self.category,
+            'payer_id': self.payer_id,
+            'split_type': self.split_type,
+            'user1_share': float(self.user1_share) if self.user1_share else None,
+            'user2_share': float(self.user2_share) if self.user2_share else None,
+            'settled': self.settled,
+            'expense_date': self.expense_date.isoformat() if self.expense_date else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'settled_at': self.settled_at.isoformat() if self.settled_at else None
+        }
+
+
+class CoupleBudget(db.Model):
+    """Joint Budget for Couples"""
+    __tablename__ = 'couple_budgets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    combined_limit = db.Column(db.Numeric(15, 2), nullable=False)
+    month = db.Column(db.String(7), nullable=False)  # YYYY-MM
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="budgets")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'category': self.category,
+            'combined_limit': float(self.combined_limit),
+            'month': self.month,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CoupleTaxPlan(db.Model):
+    """Tax Optimization for Couples"""
+    __tablename__ = 'couple_tax_plans'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    user1_income = db.Column(db.Numeric(15, 2), nullable=False)
+    user2_income = db.Column(db.Numeric(15, 2), nullable=False)
+    regime = db.Column(db.String(20), default='NEW')  # NEW, OLD
+    total_tax = db.Column(db.Numeric(15, 2), nullable=True)
+    total_savings = db.Column(db.Numeric(15, 2), nullable=True)
+    suggestions = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'user1_income': float(self.user1_income),
+            'user2_income': float(self.user2_income),
+            'regime': self.regime,
+            'total_tax': float(self.total_tax) if self.total_tax else None,
+            'total_savings': float(self.total_savings) if self.total_savings else None,
+            'suggestions': self.suggestions,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CoupleAlert(db.Model):
+    """Alerts for Couple Activities"""
+    __tablename__ = 'couple_alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # INVITATION, GOAL, EXPENSE, BUDGET
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="alerts")
+    user = db.relationship("User", backref="couple_alerts")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'type': self.type,
+            'message': self.message,
+            'is_read': self.is_read,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+
         }
 
 
@@ -758,6 +1079,7 @@ class FraudAlert(db.Model):
             'is_read': self.is_read,
             'is_resolved': self.is_resolved,
             'created_at': self.created_at.isoformat() if self.created_at else None
+
         }   
 
 # ============================================
@@ -950,3 +1272,71 @@ class NotificationPreference(db.Model):
             'in_app_notification': self.in_app_notification,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+        }     
+
+
+
+class MilestoneNotification(db.Model):
+    __tablename__ = "milestone_notifications"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # goal, budget, sip
+    triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
+    ref_id = db.Column(db.Integer, nullable=True)
+    milestone_value = db.Column(db.Float, nullable=True)
+
+    user = db.relationship("User", backref="milestone_notifications")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "title": self.title,
+            "message": self.message,
+            "category": self.category,
+            "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
+            "is_read": self.is_read,
+            "ref_id": self.ref_id,
+            "milestone_value": self.milestone_value
+        }
+
+
+class SipSchedule(db.Model):
+    __tablename__ = "sip_schedules"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    day_of_month = db.Column(db.Integer, nullable=False)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_notified_at = db.Column(db.DateTime, nullable=True)
+    total_invested = db.Column(db.Float, default=0.0)
+
+    user = db.relationship("User", backref="sip_schedules")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "name": self.name,
+            "amount": self.amount,
+            "day_of_month": self.day_of_month,
+            "currency": self.currency,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_notified_at": self.last_notified_at.isoformat() if self.last_notified_at else None,
+            "total_invested": self.total_invested
+
+        }
+
+
+
+        }
+
+

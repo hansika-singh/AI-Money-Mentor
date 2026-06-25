@@ -20,8 +20,21 @@
           <option value="Shopping">Shopping</option>
           <option value="Other">Other</option>
         </select>
-        <label for="limitAmt">Limit Amount (₹)</label>
-        <input type="number" required min="1" id="limitAmt" placeholder="e.g. 10000" style="margin-bottom: 16px;">
+        <label for="limitAmt">Limit Amount & Currency</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <input type="number" required min="1" id="limitAmt" placeholder="e.g. 10000" style="flex: 2; margin-bottom: 0;">
+          <select id="limitCurrency" style="flex: 1; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+            <option value="INR" selected>INR (₹)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="JPY">JPY (¥)</option>
+            <option value="CAD">CAD ($)</option>
+            <option value="AUD">AUD ($)</option>
+            <option value="AED">AED (د.إ)</option>
+            <option value="SGD">SGD ($)</option>
+          </select>
+        </div>
         <button type="submit" id="limitBtn" class="btn btn-gold" style="width: 100%;">Set Budget Limit</button>
       </form>
 
@@ -88,10 +101,11 @@
       e.preventDefault();
       const category = document.getElementById("limitCategory").value;
       const limit_amount = parseFloat(document.getElementById("limitAmt").value);
+      const currency = document.getElementById("limitCurrency").value;
       
       setLoading("limitBtn", true);
       try {
-        const data = await apiFetch("/budget/limits", { category, limit_amount });
+        const data = await apiFetch("/budget/limits", { category, limit_amount, currency });
         if (data.status === "success") {
           document.getElementById("limitAmt").value = "";
           document.getElementById("limitCategory").value = "";
@@ -126,6 +140,10 @@
       }
       
       let warnings = [];
+      const symbolMap = {
+        'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£',
+        'JPY': '¥', 'CAD': '$', 'AUD': '$', 'AED': 'د.إ', 'SGD': '$'
+      };
       
       data.categories.forEach(item => {
         const pct = item.percentage;
@@ -133,8 +151,12 @@
         const barColor = overBudget ? 'var(--red)' : pct >= 90 ? 'var(--red)' : pct >= 80 ? 'var(--gold)' : 'var(--green)';
         const pctText = item.limit_amount > 0 ? `${pct}% used` : "No limit set";
         
+        const curr = item.currency || 'INR';
+        const sym = symbolMap[curr] || curr;
+        const limitDisplay = curr === 'INR' ? `₹${fmtNum(item.limit_amount)}` : `${sym}${fmtNum(item.limit_amount)} (${curr})`;
+
         if (pct >= 80) {
-          warnings.push(`<strong>${item.category}</strong>: Spent ₹${fmtNum(item.spent)} / ₹${fmtNum(item.limit_amount)} (${pct}%)`);
+          warnings.push(`<strong>${item.category}</strong>: Spent ₹${fmtNum(item.spent)} / ${limitDisplay} (${pct}%)`);
         }
         
         container.innerHTML += `
@@ -146,9 +168,9 @@
             <div style="background: rgba(255, 255, 255, 0.06); border-radius: 99px; height: 8px; overflow: hidden; margin-bottom: 4px;">
               <div style="width: ${Math.min(pct, 100)}%; height: 100%; background: ${barColor}; border-radius: 99px; transition: width 0.4s;"></div>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: monospace;">
               <span>Spent: ₹${fmtNum(item.spent)}</span>
-              <span>Limit: ₹${fmtNum(item.limit_amount)}</span>
+              <span>Limit: ${limitDisplay}</span>
             </div>
           </div>
         `;
