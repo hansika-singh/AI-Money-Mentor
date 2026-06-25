@@ -51,11 +51,88 @@
     </div>
     <div id="optSuggestions" style="margin-top:14px"></div>
   </div>
+
+  <!-- Tax Explainability & What-If Simulation -->
+  <div id="tax-explainability" class="card" style="display: none; max-width: 950px; margin-top: 20px;">
+    <div class="card-title">💡 Explainable Projections & What-If Simulation</div>
+    
+    <!-- Sliders section -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Section 80C Contribution</span>
+          <span id="slider80cVal" style="color: var(--gold2); font-weight: 600;">₹0</span>
+        </label>
+        <input type="range" id="slider80c" min="0" max="150000" step="5000" value="0" style="width: 100%; margin-top: 8px;" oninput="updateTaxSlider('tax80c', this.value, 'slider80cVal')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">ELSS, PPF, EPF contributions. Max ₹1.5L.</span>
+      </div>
+      
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>Section 80D Contribution</span>
+          <span id="slider80dVal" style="color: var(--gold2); font-weight: 600;">₹0</span>
+        </label>
+        <input type="range" id="slider80d" min="0" max="25000" step="1000" value="0" style="width: 100%; margin-top: 8px;" oninput="updateTaxSlider('tax80d', this.value, 'slider80dVal')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Health insurance premiums. Max ₹25k.</span>
+      </div>
+      
+      <div>
+        <label style="display: flex; justify-content: space-between; font-weight: 500; font-size: 13px;">
+          <span>HRA Exemption Amount</span>
+          <span id="sliderHraVal" style="color: var(--gold2); font-weight: 600;">₹0</span>
+        </label>
+        <input type="range" id="sliderHra" min="0" max="200000" step="5000" value="0" style="width: 100%; margin-top: 8px;" oninput="updateTaxSlider('taxHra', this.value, 'sliderHraVal')">
+        <span style="font-size: 10px; color: var(--muted); display: block; margin-top: 4px;">Exempt rent portion. Max ₹2L.</span>
+      </div>
+    </div>
+
+    <!-- Assumptions, Drivers, Lever Contributions -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+      <!-- Lever Savings contributions -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">📊 Tax Saved by Lever (Old Regime)</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="result-row" style="margin: 0; padding: 6px 0; border-bottom: 1px dashed var(--border);">
+            <span>Section 80C Savings:</span>
+            <span id="lever80cVal" style="font-weight: 600; color: #2ecc8a;">₹0</span>
+          </div>
+          <div class="result-row" style="margin: 0; padding: 6px 0; border-bottom: 1px dashed var(--border);">
+            <span>Section 80D Savings:</span>
+            <span id="lever80dVal" style="font-weight: 600; color: #2ecc8a;">₹0</span>
+          </div>
+          <div class="result-row" style="margin: 0; padding: 6px 0;">
+            <span>HRA Savings:</span>
+            <span id="leverHraVal" style="font-weight: 600; color: #2ecc8a;">₹0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drivers & Sensitivity -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚡ Sensitivity & Top Drivers</div>
+        <ul id="taxDriversList" style="font-size: 13px; color: var(--text); padding-left: 20px; line-height: 1.6; margin: 0;">
+        </ul>
+      </div>
+
+      <!-- Assumptions -->
+      <div style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 12px;">⚙️ Key Calculation Assumptions</div>
+        <ul id="taxAssumptionsList" style="font-size: 12px; color: var(--muted); padding-left: 20px; line-height: 1.5; margin: 0;">
+        </ul>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  function updateTaxSlider(inputId, val, valSpanId) {
+    document.getElementById(inputId).value = val;
+    document.getElementById(valSpanId).textContent = '₹' + fmtNum(val);
+    calcTax();
+  }
+
   async function calcTax() {
     const income = document.getElementById('taxIncome').value;
     if (!income) { showResult('taxResult', '⚠ Enter your annual income.'); return; }
@@ -155,6 +232,38 @@
           <div style="font-size:12px;color:var(--muted);margin-top:4px">Annual Savings: ₹${fmtNum(taxRes.savings)}</div>
         `);
 
+        // Explainability & Simulation card
+        if (taxRes.explainability) {
+          document.getElementById('tax-explainability').style.display = 'block';
+          
+          // Sync sliders with inputs
+          document.getElementById('slider80c').value = deduction_80c;
+          document.getElementById('slider80cVal').textContent = '₹' + fmtNum(deduction_80c);
+          document.getElementById('slider80d').value = deduction_80d;
+          document.getElementById('slider80dVal').textContent = '₹' + fmtNum(deduction_80d);
+          document.getElementById('sliderHra').value = deduction_hra;
+          document.getElementById('sliderHraVal').textContent = '₹' + fmtNum(deduction_hra);
+
+          // Render lever contributions
+          const lever = taxRes.explainability.lever_contributions || {};
+          document.getElementById('lever80cVal').textContent = '₹' + fmtNum(lever['80c'] || 0);
+          document.getElementById('lever80dVal').textContent = '₹' + fmtNum(lever['80d'] || 0);
+          document.getElementById('leverHraVal').textContent = '₹' + fmtNum(lever['hra'] || 0);
+
+          // Render drivers
+          const drDiv = document.getElementById('taxDriversList');
+          drDiv.innerHTML = (taxRes.explainability.top_drivers || []).map(item => `
+            <li style="margin-bottom: 8px;">
+              <strong>${item.driver}:</strong> ${item.delta}
+              <div style="font-size: 11px; color: var(--muted);">${item.reason}</div>
+            </li>
+          `).join('');
+
+          // Render assumptions
+          const assDiv = document.getElementById('taxAssumptionsList');
+          assDiv.innerHTML = (taxRes.explainability.assumptions || []).map(item => `<li>${item}</li>`).join('');
+        }
+
         // Fetch optimization suggestions alongside the regime comparison
         calcTaxOptimize();
       }
@@ -237,6 +346,16 @@
     if (optCard) optCard.style.display = 'none';
     const optSuggestions = document.getElementById('optSuggestions');
     if (optSuggestions) optSuggestions.innerHTML = '';
+
+    // Reset sliders and hide explainability card
+    const expCard = document.getElementById('tax-explainability');
+    if (expCard) expCard.style.display = 'none';
+    document.getElementById('slider80c').value = 0;
+    document.getElementById('slider80cVal').textContent = '₹0';
+    document.getElementById('slider80d').value = 0;
+    document.getElementById('slider80dVal').textContent = '₹0';
+    document.getElementById('sliderHra').value = 0;
+    document.getElementById('sliderHraVal').textContent = '₹0';
   }
 
 </script>

@@ -72,14 +72,28 @@
             <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Ticker Symbol</label>
             <input type="text" id="addSymbol" placeholder="e.g. TCS, INFY, AAPL" style="text-transform: uppercase; width: 100%;">
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
             <div>
               <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Quantity</label>
-              <input type="number" step="any" min="0.0001" id="addQuantity" placeholder="e.g. 10">
+              <input type="number" step="any" min="0.0001" id="addQuantity" placeholder="e.g. 10" style="width: 100%;">
             </div>
             <div>
-              <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Buy Price (₹/$)</label>
-              <input type="number" step="any" min="0.01" id="addBuyPrice" placeholder="e.g. 3500">
+              <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Buy Price</label>
+              <input type="number" step="any" min="0.01" id="addBuyPrice" placeholder="e.g. 3500" style="width: 100%;">
+            </div>
+            <div>
+              <label style="font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px;">Currency</label>
+              <select id="addCurrency" style="width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="INR" selected>INR (₹)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="JPY">JPY (¥)</option>
+                <option value="CAD">CAD ($)</option>
+                <option value="AUD">AUD ($)</option>
+                <option value="AED">AED (د.إ)</option>
+                <option value="SGD">SGD ($)</option>
+              </select>
             </div>
           </div>
           <div>
@@ -182,11 +196,19 @@
       `;
       return;
     }
+
+    const symbolMap = {
+      'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£',
+      'JPY': '¥', 'CAD': '$', 'AUD': '$', 'AED': 'د.إ', 'SGD': '$'
+    };
     
     holdings.forEach(h => {
       const pnlSign = h.pnl >= 0 ? '+' : '';
       const pnlColor = h.pnl >= 0 ? '#2ecc8a' : '#ff5e5e';
       
+      const curr = h.currency || 'INR';
+      const sym = symbolMap[curr] || curr;
+
       tbody.innerHTML += `
         <tr style="border-bottom: 1px solid var(--border);">
           <td style="padding: 12px 8px;">
@@ -194,15 +216,15 @@
             <small style="color:var(--muted);">${h.name}</small>
           </td>
           <td style="padding: 12px 8px; text-align: right;">${h.quantity}</td>
-          <td style="padding: 12px 8px; text-align: right;">₹${fmtNum(h.buy_price)}</td>
-          <td style="padding: 12px 8px; text-align: right;">₹${fmtNum(h.current_price)}</td>
-          <td style="padding: 12px 8px; text-align: right;">₹${fmtNum(h.invested_value)}</td>
-          <td style="padding: 12px 8px; text-align: right;">₹${fmtNum(h.current_value)}</td>
-          <td style="padding: 12px 8px; text-align: right; color: ${pnlColor}; font-weight: 600;">
-            ${pnlSign}₹${fmtNum(h.pnl)} (${pnlSign}${h.pnl_percent.toFixed(2)}%)
+          <td style="padding: 12px 8px; text-align: right; font-family: monospace;">${sym}${fmtNum(h.buy_price)}</td>
+          <td style="padding: 12px 8px; text-align: right; font-family: monospace;">${sym}${fmtNum(h.current_price)}</td>
+          <td style="padding: 12px 8px; text-align: right; font-family: monospace;">${sym}${fmtNum(h.invested_value)}</td>
+          <td style="padding: 12px 8px; text-align: right; font-family: monospace;">${sym}${fmtNum(h.current_value)}</td>
+          <td style="padding: 12px 8px; text-align: right; color: ${pnlColor}; font-weight: 600; font-family: monospace;">
+            ${pnlSign}${sym}${fmtNum(h.pnl)} (${pnlSign}${h.pnl_percent.toFixed(2)}%)
           </td>
-          <td style="padding: 12px 8px; text-align: right; color: var(--teal); font-weight: 600;">₹${fmtNum(h.dividends_received)}</td>
-          <td style="padding: 12px 8px; text-align: right; color: var(--gold); font-weight: 600;">${h.yoc.toFixed(2)}%</td>
+          <td style="padding: 12px 8px; text-align: right; color: var(--teal); font-weight: 600; font-family: monospace;">${sym}${fmtNum(h.dividends_received)}</td>
+          <td style="padding: 12px 8px; text-align: right; color: var(--gold); font-weight: 600; font-family: monospace;">${h.yoc.toFixed(2)}%</td>
           <td style="padding: 12px 8px; text-align: center;">
             <button class="btn btn-ghost" style="padding: 4px 8px; font-size: 11px; height: auto; min-height: auto; color: #ff5e5e;" onclick="deleteHolding(${h.id})">✖</button>
           </td>
@@ -216,6 +238,7 @@
     const qty = parseFloat(document.getElementById('addQuantity').value);
     const buyPrice = parseFloat(document.getElementById('addBuyPrice').value);
     const buyDate = document.getElementById('addBuyDate').value;
+    const currency = document.getElementById('addCurrency').value;
     const notes = document.getElementById('addNotes').value.trim();
     
     if (!symbol || !qty || qty <= 0 || !buyPrice || buyPrice <= 0 || !buyDate) {
@@ -233,6 +256,7 @@
           quantity: qty,
           buy_price: buyPrice,
           buy_date: buyDate,
+          currency: currency,
           notes: notes
         })
       });

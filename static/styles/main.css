@@ -1401,8 +1401,6 @@
     }
 
     
-    @media (max-width: 768px) {
-
     body.light-theme .sidebar {
       background: #ffffff;
       border-right: 1px solid rgba(0, 0, 0, 0.08);
@@ -1659,14 +1657,15 @@
       height: 220px !important;
     }
 
-    .chart-wrap {
-      width: 100%;
-      height: 280px;
-      max-height: 280px;
-      overflow: hidden;
-      position: relative;
+    @media (max-width: 768px) {
+      .chart-wrap {
+        width: 100%;
+        height: 280px;
+        max-height: 280px;
+        overflow: hidden;
+        position: relative;
+      }
     }
-  }
     
 /* Skeleton Loaders */
 .skeleton-line {
@@ -1839,4 +1838,41 @@ body.light-theme .calc-breakdown-card {
 }
 .calculate-hra-link:hover {
   color: var(--gold);
+}
+
+/* ── PREMIUM ANIMATIONS ───────────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 10px rgba(212, 168, 67, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(212, 168, 67, 0.5); }
+  100% { box-shadow: 0 0 10px rgba(212, 168, 67, 0.2); }
+}
+
+.fade-up {
+  animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+
+.premium-glow-hover {
+  transition: all 0.3s ease;
+}
+.premium-glow-hover:hover {
+  animation: glowPulse 2s infinite;
+  transform: translateY(-4px);
+  border-color: rgba(212, 168, 67, 0.5);
 }
