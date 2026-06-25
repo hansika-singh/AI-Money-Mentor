@@ -1035,9 +1035,204 @@ def predictor_status():
     return jsonify({
         'is_trained': predictor.is_trained,
         'model_dir': predictor.model_dir
+
+    })   
+
+    # ---------------- FIRE PLANNER ----------------
+from utils.fire_planner import FIREPlanner
+
+@app.route('/fire-planner')
+@login_required
+def fire_planner_page():
+    """FIRE Path Planner Page"""
+    return render_template('fire_planner.html', active_page='fire_planner')
+
+@app.route('/api/fire/plan', methods=['POST'])
+@login_required
+def fire_plan():
+    """Generate FIRE plan with Monte Carlo simulation"""
+    try:
+        data = request.json
+        
+        # Create planner
+        planner = FIREPlanner(
+            current_age=data.get('current_age', 30),
+            retirement_age=data.get('retirement_age', 45),
+            annual_expenses=data.get('annual_expenses', 500000),
+            current_corpus=data.get('current_corpus', 1000000),
+            monthly_savings=data.get('monthly_savings', 30000),
+            return_mean=data.get('return_mean', 0.10),
+            return_std=data.get('return_std', 0.15),
+            inflation_rate=data.get('inflation_rate', 0.06)
+        )
+        
+        # Get plan summary
+        plan = planner.get_plan_summary()
+        
+        return jsonify({
+            'success': True,
+            'data': plan,
+            'visualization': planner.get_visualization_data()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/fire/quick', methods=['POST'])
+@login_required
+def fire_quick():
+    """Quick FIRE calculation without full Monte Carlo"""
+    try:
+        data = request.json
+        
+        planner = FIREPlanner(
+            current_age=data.get('current_age', 30),
+            retirement_age=data.get('retirement_age', 45),
+            annual_expenses=data.get('annual_expenses', 500000),
+            current_corpus=data.get('current_corpus', 1000000),
+            monthly_savings=data.get('monthly_savings', 30000),
+            return_mean=data.get('return_mean', 0.10),
+            return_std=data.get('return_std', 0.15),
+            inflation_rate=data.get('inflation_rate', 0.06)
+        )
+        
+        # Run quick simulation
+        mc_results = planner.run_monte_carlo(iterations=200)
+        
+        return jsonify({
+            'success': True,
+            'success_probability': mc_results['success']['probability'],
+            'median_corpus': mc_results['corpus']['median'],
+            'target_corpus': planner.target_corpus
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+
+        # ---------------- BANK INTEGRATION ----------------
+from utils.bank_integration import BankIntegration
+
+bank_integration = BankIntegration()
+
+@app.route('/bank-integration')
+@login_required
+def bank_integration_page():
+    """Bank Integration Page"""
+    return render_template('bank_integration.html', active_page='bank_integration')
+
+@app.route('/api/bank/connect', methods=['POST'])
+@login_required
+def connect_bank():
+    """Connect a bank account"""
+    try:
+        data = request.json
+        provider = data.get('provider')
+        account_name = data.get('account_name')
+        account_number = data.get('account_number')
+        
+        if not provider or not account_name:
+            return jsonify({'error': 'Provider and account name are required'}), 400
+        
+        credentials = {
+            'account_name': account_name,
+            'account_number': account_number
+        }
+        
+        result = bank_integration.connect_bank(current_user.id, provider, credentials)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/sync', methods=['POST'])
+@login_required
+def sync_transactions():
+    """Sync transactions from connected banks"""
+    try:
+        data = request.json or {}
+        connection_id = data.get('connection_id')
+        
+        result = bank_integration.sync_transactions(current_user.id, connection_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/connections', methods=['GET'])
+@login_required
+def get_connections():
+    """Get all bank connections for user"""
+    try:
+        connections = BankConnection.query.filter_by(user_id=current_user.id, is_active=True).all()
+        return jsonify({
+            'success': True,
+            'connections': [c.to_dict() for c in connections]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/transactions', methods=['GET'])
+@login_required
+def get_bank_transactions():
+    """Get bank transactions for user"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        connection_id = request.args.get('connection_id', type=int)
+        
+        query = BankTransaction.query.filter_by(user_id=current_user.id)
+        if connection_id:
+            query = query.filter_by(connection_id=connection_id)
+        
+        transactions = query.order_by(BankTransaction.transaction_date.desc()).limit(limit).all()
+        
+        return jsonify({
+            'success': True,
+            'transactions': [t.to_dict() for t in transactions]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/anomalies', methods=['GET'])
+@login_required
+def get_anomalies():
+    """Get anomalies for user"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        anomalies = bank_integration.get_anomalies(current_user.id, limit)
+        
+        return jsonify({
+            'success': True,
+            'anomalies': anomalies
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/anomalies/<int:alert_id>/resolve', methods=['POST'])
+@login_required
+def resolve_anomaly(alert_id):
+    """Resolve an anomaly alert"""
+    try:
+        result = bank_integration.resolve_alert(alert_id, current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank/sync-status', methods=['GET'])
+@login_required
+def get_sync_status():
+    """Get sync status for all connections"""
+    try:
+        result = bank_integration.get_sync_status(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+        return jsonify({'error': str(e)}), 500  
+
     })    
 
     return jsonify({'error': str(e)}), 500  
+
 
 
 

@@ -759,6 +759,328 @@ class CoupleAlert(db.Model):
         }
 
 
+        # ============================================
+# COUPLE FINANCE MODELS
+# ============================================
+
+class Couple(db.Model):
+    """Couple Relationship Model"""
+    __tablename__ = 'couples'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    status = db.Column(db.String(20), default='PENDING')  # PENDING, ACTIVE, DECLINED, UNLINKED
+    invitation_token = db.Column(db.String(100), unique=True, nullable=True)
+    invitation_expires = db.Column(db.DateTime, nullable=True)
+    linked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user1 = db.relationship("User", foreign_keys=[user1_id], backref="couple_user1")
+    user2 = db.relationship("User", foreign_keys=[user2_id], backref="couple_user2")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user1_id': self.user1_id,
+            'user2_id': self.user2_id,
+            'status': self.status,
+            'linked_at': self.linked_at.isoformat() if self.linked_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class SharedGoal(db.Model):
+    """Shared Goals for Couples"""
+    __tablename__ = 'shared_goals'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    target_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    current_amount = db.Column(db.Numeric(15, 2), default=0.00)
+    deadline = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), default='ACTIVE')  # ACTIVE, COMPLETED, CANCELLED
+    priority = db.Column(db.String(20), default='MEDIUM')  # LOW, MEDIUM, HIGH
+    icon = db.Column(db.String(50), default='🎯')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="shared_goals")
+    contributions = db.relationship("GoalContribution", backref="goal", lazy=True, cascade='all, delete-orphan')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'name': self.name,
+            'description': self.description,
+            'target_amount': float(self.target_amount),
+            'current_amount': float(self.current_amount),
+            'progress': round(float(self.current_amount) / float(self.target_amount) * 100, 2) if float(self.target_amount) > 0 else 0,
+            'deadline': self.deadline.isoformat() if self.deadline else None,
+            'status': self.status,
+            'priority': self.priority,
+            'icon': self.icon,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'contributions': [c.to_dict() for c in self.contributions]
+        }
+
+
+class GoalContribution(db.Model):
+    """Individual Contributions to Shared Goals"""
+    __tablename__ = 'goal_contributions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('shared_goals.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    note = db.Column(db.String(200))
+    contributed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship("User", backref="goal_contributions")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'user_id': self.user_id,
+            'amount': float(self.amount),
+            'note': self.note,
+            'contributed_at': self.contributed_at.isoformat() if self.contributed_at else None
+        }
+
+
+class SplitExpense(db.Model):
+    """Split Expenses for Couples"""
+    __tablename__ = 'split_expenses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    total_amount = db.Column(db.Numeric(15, 2), nullable=False)
+    description = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50), default='Other')
+    payer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    split_type = db.Column(db.String(20), default='EQUAL')  # EQUAL, PERCENTAGE, CUSTOM
+    user1_share = db.Column(db.Numeric(15, 2), nullable=True)
+    user2_share = db.Column(db.Numeric(15, 2), nullable=True)
+    settled = db.Column(db.Boolean, default=False)
+    expense_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    settled_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="split_expenses")
+    payer = db.relationship("User", backref="paid_expenses")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'total_amount': float(self.total_amount),
+            'description': self.description,
+            'category': self.category,
+            'payer_id': self.payer_id,
+            'split_type': self.split_type,
+            'user1_share': float(self.user1_share) if self.user1_share else None,
+            'user2_share': float(self.user2_share) if self.user2_share else None,
+            'settled': self.settled,
+            'expense_date': self.expense_date.isoformat() if self.expense_date else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'settled_at': self.settled_at.isoformat() if self.settled_at else None
+        }
+
+
+class CoupleBudget(db.Model):
+    """Joint Budget for Couples"""
+    __tablename__ = 'couple_budgets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    combined_limit = db.Column(db.Numeric(15, 2), nullable=False)
+    month = db.Column(db.String(7), nullable=False)  # YYYY-MM
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="budgets")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'category': self.category,
+            'combined_limit': float(self.combined_limit),
+            'month': self.month,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CoupleTaxPlan(db.Model):
+    """Tax Optimization for Couples"""
+    __tablename__ = 'couple_tax_plans'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    user1_income = db.Column(db.Numeric(15, 2), nullable=False)
+    user2_income = db.Column(db.Numeric(15, 2), nullable=False)
+    regime = db.Column(db.String(20), default='NEW')  # NEW, OLD
+    total_tax = db.Column(db.Numeric(15, 2), nullable=True)
+    total_savings = db.Column(db.Numeric(15, 2), nullable=True)
+    suggestions = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'user1_income': float(self.user1_income),
+            'user2_income': float(self.user2_income),
+            'regime': self.regime,
+            'total_tax': float(self.total_tax) if self.total_tax else None,
+            'total_savings': float(self.total_savings) if self.total_savings else None,
+            'suggestions': self.suggestions,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class CoupleAlert(db.Model):
+    """Alerts for Couple Activities"""
+    __tablename__ = 'couple_alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # INVITATION, GOAL, EXPENSE, BUDGET
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    couple = db.relationship("Couple", backref="alerts")
+    user = db.relationship("User", backref="couple_alerts")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'couple_id': self.couple_id,
+            'type': self.type,
+            'message': self.message,
+            'is_read': self.is_read,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+   # ============================================
+# BANK INTEGRATION MODELS
+# ============================================
+
+class BankConnection(db.Model):
+    """Bank Connection Model"""
+    __tablename__ = 'bank_connections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    provider = db.Column(db.String(50), nullable=False)  # upi, netbanking, card
+    account_name = db.Column(db.String(100), nullable=False)
+    account_number = db.Column(db.String(50), nullable=True)
+    access_token = db.Column(db.Text, nullable=True)
+    refresh_token = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    last_sync = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship("User", backref="bank_connections")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'provider': self.provider,
+            'account_name': self.account_name,
+            'account_number': self.account_number[-4:] if self.account_number else None,
+            'is_active': self.is_active,
+            'last_sync': self.last_sync.isoformat() if self.last_sync else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class BankTransaction(db.Model):
+    """Bank Transaction Model"""
+    __tablename__ = 'bank_transactions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    connection_id = db.Column(db.Integer, db.ForeignKey('bank_connections.id'), nullable=False)
+    transaction_id = db.Column(db.String(100), unique=True, nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    currency = db.Column(db.String(10), default='INR')
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), nullable=True)
+    merchant = db.Column(db.String(100), nullable=True)
+    transaction_date = db.Column(db.DateTime, nullable=False)
+    posted_date = db.Column(db.DateTime, nullable=True)
+    is_anomaly = db.Column(db.Boolean, default=False)
+    anomaly_reason = db.Column(db.String(200), nullable=True)
+    is_flagged = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship("User", backref="bank_transactions")
+    connection = db.relationship("BankConnection", backref="transactions")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'transaction_id': self.transaction_id,
+            'amount': float(self.amount),
+            'currency': self.currency,
+            'description': self.description,
+            'category': self.category,
+            'merchant': self.merchant,
+            'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'is_anomaly': self.is_anomaly,
+            'anomaly_reason': self.anomaly_reason,
+            'is_flagged': self.is_flagged
+        }
+
+
+class FraudAlert(db.Model):
+    """Fraud Alert Model"""
+    __tablename__ = 'fraud_alerts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('bank_transactions.id'), nullable=True)
+    alert_type = db.Column(db.String(50), nullable=False)  # high_amount, unusual_category, suspicious_pattern, etc.
+    severity = db.Column(db.String(20), default='medium')  # low, medium, high
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    is_resolved = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    
+    user = db.relationship("User", backref="fraud_alerts")
+    transaction = db.relationship("BankTransaction", backref="alerts")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'alert_type': self.alert_type,
+            'severity': self.severity,
+            'message': self.message,
+            'is_read': self.is_read,
+            'is_resolved': self.is_resolved,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }     
+
+
 class MilestoneNotification(db.Model):
     __tablename__ = "milestone_notifications"
     id = db.Column(db.Integer, primary_key=True)
@@ -816,3 +1138,8 @@ class SipSchedule(db.Model):
             "total_invested": self.total_invested
 
         }
+
+
+
+        }
+

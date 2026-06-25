@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIRE Planner - AI Money Mentor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #070b12; color: #eef0f5; font-family: 'Instrument Sans', sans-serif; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .card { background: rgba(15,22,38,0.96); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 24px; margin-bottom: 20px; }
+        .btn-gold { background: linear-gradient(135deg, #f3d687, #d4a843); color: #0a0e18; border: none; padding: 10px 24px; border-radius: 999px; font-weight: 700; }
+        .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(212,168,67,0.3); }
+        .text-gold { color: #d4a843; }
+        .text-muted { color: #5a6a82; }
+        .stat-card { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.06); }
+        .stat-card .value { font-size: 28px; font-weight: 800; }
+        .stat-card .label { font-size: 12px; color: #5a6a82; text-transform: uppercase; }
+        .stat-card .sub-value { font-size: 14px; color: #5a6a82; }
+        .form-control { background: rgba(17,26,46,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; color: #eef0f5; }
+        .form-control:focus { background: rgba(17,26,46,0.95); border-color: #d4a843; color: #eef0f5; box-shadow: 0 0 0 3px rgba(212,168,67,0.1); }
+        .form-range { accent-color: #d4a843; }
+        .badge-success { background: rgba(46,204,138,0.15); color: #2ecc8a; }
+        .badge-warning { background: rgba(243,156,18,0.15); color: #f39c12; }
+        .badge-danger { background: rgba(224,82,82,0.15); color: #e05282; }
+        .badge-excellent { background: rgba(46,204,138,0.15); color: #2ecc8a; font-size: 14px; padding: 8px 16px; }
+        .badge-good { background: rgba(212,168,67,0.15); color: #d4a843; font-size: 14px; padding: 8px 16px; }
+        .badge-fair { background: rgba(243,156,18,0.15); color: #f39c12; font-size: 14px; padding: 8px 16px; }
+        .badge-poor { background: rgba(224,82,82,0.15); color: #e05282; font-size: 14px; padding: 8px 16px; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #d4a843; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .sensitivity-bar { height: 20px; border-radius: 10px; background: rgba(255,255,255,0.05); overflow: hidden; }
+        .sensitivity-bar .fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, #2ecc8a, #d4a843, #e05282); transition: width 0.5s; }
+        .recommendation-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 16px; margin-bottom: 10px; }
+        .recommendation-card .impact-high { border-left: 4px solid #e05252; }
+        .recommendation-card .impact-medium { border-left: 4px solid #f39c12; }
+        .recommendation-card .impact-low { border-left: 4px solid #2ecc8a; }
+        .chart-container { height: 350px; position: relative; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="text-gold">🔥 FIRE Path Planner</h1>
+                <p class="text-muted">Monte Carlo simulation for Financial Independence</p>
+            </div>
+            <a href="/" class="btn btn-gold">← Back to Dashboard</a>
+        </div>
+
+        <!-- Status Banner -->
+        <div id="statusBanner"></div>
+
+        <!-- Input Section -->
+        <div class="card">
+            <h5>📊 Plan Your FIRE Journey</h5>
+            <form id="fireForm" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Current Age</label>
+                    <input type="number" class="form-control" id="currentAge" value="30" min="18" max="80">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Target Retirement Age</label>
+                    <input type="number" class="form-control" id="retirementAge" value="45" min="25" max="90">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Annual Expenses (₹)</label>
+                    <input type="number" class="form-control" id="annualExpenses" value="500000" step="10000">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Current Corpus (₹)</label>
+                    <input type="number" class="form-control" id="currentCorpus" value="1000000" step="10000">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Monthly Savings (₹)</label>
+                    <input type="number" class="form-control" id="monthlySavings" value="30000" step="1000">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Expected Return (%)</label>
+                    <input type="number" class="form-control" id="returnMean" value="10" step="0.5" min="2" max="25">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Return Volatility (%)</label>
+                    <input type="number" class="form-control" id="returnStd" value="15" step="0.5" min="5" max="40">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted">Inflation Rate (%)</label>
+                    <input type="number" class="form-control" id="inflationRate" value="6" step="0.5" min="0" max="15">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-gold w-100" id="planBtn">🚀 Generate FIRE Plan</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" style="display:none;">
+            <!-- Stats Row -->
+            <div class="row mb-4" id="statsRow">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="label">Success Probability</div>
+                        <div class="value" id="successProb">0%</div>
+                        <div class="sub-value" id="simCount">Based on 1000 simulations</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="label">Median Corpus</div>
+                        <div class="value" id="medianCorpus">₹0</div>
+                        <div class="sub-value">At retirement</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="label">Target Corpus Needed</div>
+                        <div class="value" id="targetCorpus">₹0</div>
+                        <div class="sub-value">25x annual expenses</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="label">Shortfall</div>
+                        <div class="value" id="shortfall">₹0</div>
+                        <div class="sub-value" id="shortfallStatus">✅ On Track</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Withdrawal Strategy -->
+            <div class="card">
+                <h5>💳 Withdrawal Strategy Analysis</h5>
+                <div id="withdrawalStrategies"></div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <h5>📊 Portfolio Paths (1000 Simulations)</h5>
+                        <div class="chart-container">
+                            <canvas id="pathsChart"></canvas>
+                        </div>
+                        <p class="text-muted small mt-2">Green paths: Successful | Red paths: Failed</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <h5>📈 Final Corpus Distribution</h5>
+                        <div class="chart-container">
+                            <canvas id="distributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sensitivity Analysis -->
+            <div class="card">
+                <h5>🔍 Sensitivity Analysis</h5>
+                <div id="sensitivityResults"></div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="card">
+                <h5>💡 Optimization Recommendations</h5>
+                <div id="recommendations"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pathsChart = null;
+        let distributionChart = null;
+
+        document.getElementById('fireForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('planBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Running 1000 simulations...';
+            
+            const data = {
+                current_age: parseInt(document.getElementById('currentAge').value),
+                retirement_age: parseInt(document.getElementById('retirementAge').value),
+                annual_expenses: parseFloat(document.getElementById('annualExpenses').value),
+                current_corpus: parseFloat(document.getElementById('currentCorpus').value),
+                monthly_savings: parseFloat(document.getElementById('monthlySavings').value),
+                return_mean: parseFloat(document.getElementById('returnMean').value) / 100,
+                return_std: parseFloat(document.getElementById('returnStd').value) / 100,
+                inflation_rate: parseFloat(document.getElementById('inflationRate').value) / 100
+            };
+            
+            try {
+                const response = await fetch('/api/fire/plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderResults(result.data);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+            
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Generate FIRE Plan';
+        });
+
+        function renderResults(data) {
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Stats
+            document.getElementById('successProb').textContent = data.monte_carlo.success.probability + '%';
+            document.getElementById('simCount').textContent = `Based on ${data.monte_carlo.success.total} simulations`;
+            document.getElementById('medianCorpus').textContent = '₹' + (data.monte_carlo.corpus.median || 0).toLocaleString();
+            document.getElementById('targetCorpus').textContent = '₹' + (data.input_summary.target_corpus || 0).toLocaleString();
+            document.getElementById('shortfall').textContent = '₹' + (data.input_summary.shortfall || 0).toLocaleString();
+            
+            const shortfallStatus = document.getElementById('shortfallStatus');
+            if (data.input_summary.shortfall <= 0) {
+                shortfallStatus.textContent = '✅ On Track';
+                shortfallStatus.style.color = '#2ecc8a';
+            } else {
+                shortfallStatus.textContent = '⚠️ Shortfall';
+                shortfallStatus.style.color = '#f39c12';
+            }
+            
+            // Status Banner
+            const status = data.recommendations.summary || '';
+            const prob = data.monte_carlo.success.probability;
+            let badgeClass = 'badge-excellent';
+            if (prob < 90) badgeClass = 'badge-good';
+            if (prob < 70) badgeClass = 'badge-fair';
+            if (prob < 50) badgeClass = 'badge-poor';
+            
+            document.getElementById('statusBanner').innerHTML = `
+                <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge ${badgeClass}">${data.monte_carlo.success.probability}% Success Rate</span>
+                            <span class="text-muted ms-2">${status}</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">FIRE Status: </span>
+                            <span class="${data.monte_carlo.success.probability >= 70 ? 'text-success' : 'text-warning'}">
+                                ${data.monte_carlo.success.probability >= 90 ? '🏆 Excellent' : 
+                                  data.monte_carlo.success.probability >= 70 ? '✅ Good' :
+                                  data.monte_carlo.success.probability >= 50 ? '⚠️ Fair' : '🔴 Needs Work'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Withdrawal Strategies
+            renderWithdrawalStrategies(data.withdrawal_strategy);
+            
+            // Charts
+            renderPathsChart(data);
+            renderDistributionChart(data);
+            
+            // Sensitivity
+            renderSensitivity(data.sensitivity);
+            
+            // Recommendations
+            renderRecommendations(data.recommendations);
+        }
+
+        function renderWithdrawalStrategies(strategyData) {
+            const container = document.getElementById('withdrawalStrategies');
+            const strategies = strategyData.strategies || {};
+            
+            let html = '<div class="row">';
+            for (const [key, strategy] of Object.entries(strategies)) {
+                const isRecommended = key === strategyData.recommended;
+                html += `
+                    <div class="col-md-3">
+                        <div class="stat-card" style="${isRecommended ? 'border-color: #d4a843;' : ''}">
+                            <div class="label">${strategy.name}</div>
+                            <div class="value" style="font-size:20px;">₹${strategy.withdrawal_amount.toLocaleString()}</div>
+                            <div class="sub-value">Success: ${strategy.success_probability}%</div>
+                            ${isRecommended ? '<div class="sub-value text-gold">⭐ Recommended</div>' : ''}
+                            <small class="text-muted">${strategy.description}</small>
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderPathsChart(data) {
+            const ctx = document.getElementById('pathsChart').getContext('2d');
+            if (pathsChart) pathsChart.destroy();
+            
+            // Get sample paths (every 5th path for performance)
+            const paths = data.monte_carlo.all_paths || [];
+            const samplePaths = paths.filter((_, i) => i % 5 === 0);
+            
+            const datasets = [];
+            let successCount = 0;
+            let failCount = 0;
+            
+            samplePaths.forEach((path, index) => {
+                const portfolio = path.portfolio || [];
+                const isSuccess = path.success;
+                
+                if (isSuccess && successCount < 20) {
+                    successCount++;
+                    datasets.push({
+                        label: `Success ${successCount}`,
+                        data: portfolio,
+                        borderColor: 'rgba(46,204,138,0.3)',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 0
+                    });
+                } else if (!isSuccess && failCount < 20) {
+                    failCount++;
+                    datasets.push({
+                        label: `Fail ${failCount}`,
+                        data: portfolio,
+                        borderColor: 'rgba(224,82,82,0.3)',
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 0
+                    });
+                }
+            });
+            
+            // Add median and percentile lines
+            if (data.monte_carlo.success_paths && data.monte_carlo.success_paths.length > 0) {
+                const allPaths = data.monte_carlo.all_paths || [];
+                const maxLength = Math.max(...allPaths.map(p => (p.portfolio || []).length));
+                
+                // Calculate median path
+                const medianPath = [];
+                for (let i = 0; i < maxLength; i++) {
+                    const values = allPaths.map(p => (p.portfolio || [])[i] || 0);
+                    medianPath.push(values.sort((a, b) => a - b)[Math.floor(values.length / 2)]);
+                }
+                
+                datasets.push({
+                    label: 'Median Path',
+                    data: medianPath,
+                    borderColor: '#d4a843',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    borderDash: [5, 5]
+                });
+            }
+            
+            pathsChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '₹' + context.raw.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Years', color: '#5a6a82' },
+                            ticks: { color: '#5a6a82' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Portfolio Value (₹)', color: '#5a6a82' },
+                            ticks: { 
+                                color: '#5a6a82',
+                                callback: function(value) {
+                                    if (value >= 10000000) return '₹' + (value/10000000).toFixed(1) + 'Cr';
+                                    if (value >= 100000) return '₹' + (value/100000).toFixed(1) + 'L';
+                                    return '₹' + value.toLocaleString();
+                                }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDistributionChart(data) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            if (distributionChart) distributionChart.destroy();
+            
+            const corpuses = data.monte_carlo.all_corpuses || [];
+            const sorted = corpuses.sort((a, b) => a - b);
+            
+            // Create histogram bins
+            const min = Math.min(...sorted);
+            const max = Math.max(...sorted);
+            const binCount = 30;
+            const binWidth = (max - min) / binCount;
+            
+            const bins = [];
+            const counts = [];
+            
+            for (let i = 0; i < binCount; i++) {
+                const lower = min + (i * binWidth);
+                const upper = lower + binWidth;
+                bins.push((lower + upper) / 2);
+                counts.push(sorted.filter(v => v >= lower && v < upper).length);
+            }
+            
+            // Percentile lines
+            const percentiles = data.monte_carlo.corpus.percentiles || {};
+            
+            distributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: bins.map(b => '₹' + (b/100000).toFixed(1) + 'L'),
+                    datasets: [{
+                        label: 'Frequency',
+                        data: counts,
+                        backgroundColor: 'rgba(212,168,67,0.6)',
+                        borderColor: '#d4a843',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.raw + ' scenarios';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Final Corpus', color: '#5a6a82' },
+                            ticks: { color: '#5a6a82', maxTicksLimit: 10 },
+                            grid: { display: false }
+                        },
+                        y: {
+                            title: { display: true, text: 'Frequency', color: '#5a6a82' },
+                            ticks: { color: '#5a6a82' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderSensitivity(sensitivity) {
+            const container = document.getElementById('sensitivityResults');
+            let html = '<div class="row">';
+            
+            for (const [key, data] of Object.entries(sensitivity || {})) {
+                const impactLevel = data.sensitivity?.impact_level || 'low';
+                const impactColor = impactLevel === 'high' ? '#e05252' : impactLevel === 'medium' ? '#f39c12' : '#2ecc8a';
+                const results = data.results || [];
+                
+                html += `
+                    <div class="col-md-6">
+                        <div class="card" style="margin-bottom:15px;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6>${data.label}</h6>
+                                <span style="color:${impactColor};">${impactLevel.toUpperCase()} impact</span>
+                            </div>
+                            <div class="sensitivity-bar">
+                                <div class="fill" style="width:${Math.min(100, data.sensitivity?.impact_range || 0)}%;"></div>
+                            </div>
+                            <div class="row mt-2">
+                                ${results.map(r => `
+                                    <div class="col-3 text-center">
+                                        <div style="font-size:12px;color:#5a6a82;">${typeof r.value === 'number' ? r.value.toFixed(1) : r.value}</div>
+                                        <div style="font-size:14px;font-weight:700;">${r.success_probability}%</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <small class="text-muted">${data.sensitivity?.description || ''}</small>
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderRecommendations(recommendations) {
+            const container = document.getElementById('recommendations');
+            const recs = recommendations.recommendations || [];
+            
+            if (recs.length === 0) {
+                container.innerHTML = '<div class="text-muted">No optimization recommendations at this time.</div>';
+                return;
+            }
+            
+            let html = '';
+            recs.forEach(rec => {
+                const impactClass = rec.impact_level === 'high' ? 'impact-high' : rec.impact_level === 'medium' ? 'impact-medium' : 'impact-low';
+                html += `
+                    <div class="recommendation-card ${impactClass}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${rec.label}</strong>
+                                <br>
+                                <span class="text-muted">Current: ${typeof rec.current_value === 'number' ? rec.current_value.toFixed(2) : rec.current_value}</span>
+                                <br>
+                                <small>${rec.recommendation || ''}</small>
+                            </div>
+                            <span class="badge ${rec.impact_level === 'high' ? 'badge-danger' : rec.impact_level === 'medium' ? 'badge-warning' : 'badge-success'}">
+                                ${rec.impact_level.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
