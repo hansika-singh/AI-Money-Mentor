@@ -12,7 +12,7 @@
     </div>
   </div>
 
-  <div class="stats-grid">
+  <div class="stats-grid fade-up stagger-1">
     <div class="stat-card">
       <h3>Net Worth</h3>
       <span id="netWorth">₹0</span>
@@ -34,7 +34,7 @@
     </div>
   </div>
 
-  <div class="dash-grid">
+  <div class="dash-grid fade-up stagger-2">
     <!-- LEFT SIDE: QUICK ADVISORY -->
     <div style="display:flex;flex-direction:column;gap:20px">
       <div class="card" style="flex:1">
@@ -79,7 +79,7 @@
 
       <div class="card">
         <div class="card-title">
-          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          <svg class="icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z" />
           </svg>
@@ -105,7 +105,7 @@
   </div>
 
   <!-- BOTTOM -->
-  <div class="bottom-grid">
+  <div class="bottom-grid fade-up stagger-3">
     <!-- SIP SLIDER -->
     <div class="card">
       <div class="card-title">📈 SIP Quick Calc</div>
@@ -136,8 +136,40 @@
     <div id="recentActivity">
         Loading...
     </div>
-</div>
   </div>
+</div>
+
+  <!-- TROPHY ROOM -->
+  <div class="fade-up stagger-4" style="margin-top:20px;">
+    <div class="card premium-glow-hover" style="border: 1px solid rgba(212, 168, 67, 0.3);">
+      <div class="card-title" style="color:var(--gold2); display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🏆</span> The Trophy Room
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin-bottom: 16px;">Complete financial actions to unlock badges and level up your Money Mentor status.</p>
+      <div id="trophyContainer" style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div class="text-muted" style="font-size:13px;"><div class="spinner-border spinner-border-sm" role="status"></div> Loading achievements...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CASHFLOW FORECAST -->
+  <div class="card fade-up stagger-4" style="margin-top: 20px;">
+    <div class="card-title">📊 Cashflow Forecast & Runway Projection (Next 6 Months)</div>
+    <div id="runwayAlert" style="display: none; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: bold; margin-bottom: 15px;"></div>
+    
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; flex-wrap: wrap;">
+      <div style="position: relative; height: 260px; min-width: 250px;">
+        <canvas id="cashflowChart"></canvas>
+      </div>
+      <div style="min-width: 200px;">
+        <h4 style="font-size: 14px; margin-bottom: 12px; color: var(--muted);">Projected Monthly Breakdown</h4>
+        <div id="cashflowDetails" style="display: flex; flex-direction: column; gap: 10px; max-height: 220px; overflow-y: auto;">
+          <p style="color: var(--muted); font-style: italic; font-size: 13px;">Loading cashflow forecast...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -161,9 +193,135 @@
     initPortfolioChart();
     updateSIP();
     loadRecentActivity();
-    
+    loadAchievements();
+    loadCashflowForecast();
   });
   let portfolioChartInstance = null;
+  let cashflowChartInstance = null;
+
+  async function loadCashflowForecast() {
+    try {
+      const res = await fetch('/cashflow?months=6');
+      const data = await res.json();
+      if (!data.success) {
+        document.getElementById('cashflowDetails').innerHTML = `<p style="color: var(--red); font-style: italic;">Could not load forecast.</p>`;
+        return;
+      }
+
+      // 1. Render Runway warning
+      const alertEl = document.getElementById('runwayAlert');
+      if (data.runway_status === 'Critical') {
+        alertEl.style.display = 'block';
+        alertEl.style.background = 'rgba(224, 82, 82, 0.1)';
+        alertEl.style.border = '1px solid rgba(224, 82, 82, 0.3)';
+        alertEl.style.color = '#ff5e5e';
+        alertEl.innerHTML = `⚠️ <strong>${data.runway_message}</strong>`;
+      } else {
+        alertEl.style.display = 'block';
+        alertEl.style.background = 'rgba(46, 204, 138, 0.1)';
+        alertEl.style.border = '1px solid rgba(46, 204, 138, 0.3)';
+        alertEl.style.color = '#2ecc8a';
+        alertEl.innerHTML = `✅ <strong>${data.runway_message}</strong> Current Net Worth covers all projected expenses.`;
+      }
+
+      // 2. Render details list
+      const detailsEl = document.getElementById('cashflowDetails');
+      detailsEl.innerHTML = '';
+      
+      const labels = [];
+      const incomes = [];
+      const expenses = [];
+      const balances = [];
+
+      data.forecast.forEach(item => {
+        labels.push(new Date(item.month + '-02').toLocaleDateString("en-IN", { month: 'short', year: 'numeric' }));
+        incomes.push(item.projected_income);
+        expenses.push(item.projected_expense);
+        balances.push(item.cumulative_balance);
+
+        const flowColor = item.net_cashflow >= 0 ? '#2ecc8a' : '#ff5e5e';
+        const flowSign = item.net_cashflow >= 0 ? '+' : '';
+
+        detailsEl.innerHTML += `
+          <div style="background: rgba(255, 255, 255, 0.02); padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 11px; display: flex; justify-content: space-between;">
+            <div>
+              <strong>${new Date(item.month + '-02').toLocaleDateString("en-IN", { month: 'short', year: 'numeric' })}</strong><br/>
+              <span style="color: var(--muted); font-size: 9px;">Cum. Bal: ₹${fmtNum(item.cumulative_balance)}</span>
+            </div>
+            <div style="text-align: right;">
+              <span style="color: ${flowColor}; font-weight: 600;">${flowSign}₹${fmtNum(item.net_cashflow)}</span><br/>
+              <span style="color: var(--muted); font-size: 9px;">In: ₹${fmtNum(item.projected_income)} · Out: ₹${fmtNum(item.projected_expense)}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      // 3. Render Chart
+      const ctx = document.getElementById('cashflowChart').getContext('2d');
+      if (cashflowChartInstance) {
+        cashflowChartInstance.destroy();
+      }
+
+      cashflowChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Projected Income',
+              data: incomes,
+              backgroundColor: 'rgba(46, 204, 138, 0.75)',
+              borderColor: '#2ecc8a',
+              borderWidth: 1
+            },
+            {
+              label: 'Projected Expense',
+              data: expenses,
+              backgroundColor: 'rgba(224, 82, 82, 0.75)',
+              borderColor: '#ff5e5e',
+              borderWidth: 1
+            },
+            {
+              label: 'Cumulative Balance',
+              data: balances,
+              type: 'line',
+              borderColor: '#d4a843',
+              backgroundColor: 'rgba(212, 168, 67, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#a0aec0', font: { family: 'Instrument Sans', size: 10 } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#a0aec0', font: { family: 'Instrument Sans', size: 10 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#a0aec0',
+                font: { family: 'Instrument Sans', size: 10 }
+              }
+            }
+          }
+        }
+      });
+
+    } catch (e) {
+      console.error(e);
+      document.getElementById('cashflowDetails').innerHTML = `<p style="color: var(--red); font-style: italic;">Failed to parse forecast.</p>`;
+    }
+  }
 
   function initPortfolioChart() {
     const canvasEl = document.getElementById('portfolioChart');
@@ -209,6 +367,29 @@
     } catch (err) {
         document.getElementById('recentActivity').innerHTML =
             '<p>Unable to load activity</p>';
+    }
+  }
+
+  async function loadAchievements() {
+    try {
+        const data = await apiFetch('/api/achievements');
+        const container = document.getElementById('trophyContainer');
+        if (!data || !data.achievements || data.achievements.length === 0) {
+            container.innerHTML = '<p class="text-muted" style="font-size:13px;">No achievements unlocked yet. Keep tracking!</p>';
+            return;
+        }
+        
+        container.innerHTML = data.achievements.map((ach, i) => `
+            <div class="fade-up" style="animation-delay: ${0.5 + (i * 0.1)}s; background: rgba(212, 168, 67, 0.08); border: 1px solid rgba(212, 168, 67, 0.2); padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px; min-width: 200px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 20px rgba(212,168,67,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                <div style="font-size: 28px; filter: drop-shadow(0 0 8px rgba(212,168,67,0.4));">${ach.icon}</div>
+                <div>
+                    <div style="font-weight: 700; color: var(--gold2); font-size: 14px;">${ach.title}</div>
+                    <div style="font-size: 11px; color: var(--muted);">${ach.desc}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        document.getElementById('trophyContainer').innerHTML = '<p class="text-muted" style="font-size:13px;">Unable to load achievements.</p>';
     }
   }
 
