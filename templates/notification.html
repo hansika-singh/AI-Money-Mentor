@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div id="notifications" class="page active">
+  <div class="page-title">🔔 Notifications</div>
+
+  <!-- Notification Bell -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <div>
+      <span id="unreadCount" style="font-size:14px;color:var(--muted);">Unread: 0</span>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" onclick="markAllRead()">✅ Mark All Read</button>
+      <button class="btn btn-ghost" onclick="refreshNotifications()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Notification Filters -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+    <button class="btn btn-ghost" onclick="filterNotifications('all')" id="filterAll" style="background:rgba(212,168,67,0.15);">All</button>
+    <button class="btn btn-ghost" onclick="filterNotifications('unread')" id="filterUnread">Unread</button>
+    <button class="btn btn-ghost" onclick="filterNotifications('high')" id="filterHigh">🔴 High</button>
+    <button class="btn btn-ghost" onclick="filterNotifications('medium')" id="filterMedium">🟡 Medium</button>
+    <button class="btn btn-ghost" onclick="filterNotifications('low')" id="filterLow">🟢 Low</button>
+  </div>
+
+  <!-- Notifications List -->
+  <div id="notificationsList">
+    <div style="text-align:center;padding:40px;color:var(--muted);">
+      <div style="font-size:48px;margin-bottom:16px;">📭</div>
+      <div>Loading notifications...</div>
+    </div>
+  </div>
+
+  <!-- Load More -->
+  <div style="text-align:center;margin-top:20px;">
+    <button class="btn btn-ghost" onclick="loadMore()" id="loadMoreBtn" style="display:none;">Load More</button>
+  </div>
+</div>
+
+<style>
+  .notification-item {
+    background:rgba(255,255,255,0.02);
+    border-radius:12px;
+    padding:16px;
+    margin-bottom:10px;
+    border:1px solid rgba(255,255,255,0.04);
+    display:flex;
+    gap:12px;
+    align-items:start;
+    transition:all 0.2s;
+    cursor:pointer;
+  }
+  .notification-item:hover {
+    background:rgba(255,255,255,0.04);
+    border-color:rgba(255,255,255,0.08);
+  }
+  .notification-item.unread {
+    border-left:4px solid #d4a843;
+  }
+  .notification-item.high { border-left-color: #e05252; }
+  .notification-item.medium { border-left-color: #f39c12; }
+  .notification-item.low { border-left-color: #2ecc8a; }
+  .notification-item .icon { font-size:24px; }
+  .notification-item .content { flex:1; }
+  .notification-item .content .title { font-weight:700; font-size:14px; }
+  .notification-item .content .message { font-size:13px; color:var(--muted); margin-top:4px; }
+  .notification-item .content .time { font-size:11px; color:var(--muted); margin-top:6px; }
+  .notification-item .actions { display:flex; gap:8px; align-items:center; }
+  .notification-item .actions .btn { padding:4px 12px; font-size:11px; }
+</style>
+
+<script>
+  let currentFilter = 'all';
+  let currentOffset = 0;
+  const limit = 20;
+  let hasMore = true;
+
+  // WebSocket connection
+  let socket = null;
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadNotifications();
+    connectWebSocket();
+    updateUnreadCount();
+  });
+
+  function connectWebSocket() {
+    try {
+      socket = io();
+      
+      socket.on('connect', function() {
+        console.log('🟢 WebSocket connected');
+      });
+
+      socket.on('notification', function(data) {
+        console.log('🔔 New notification:', data);
+        addNotificationToTop(data);
+        updateUnreadCount();
+      });
+
+      socket.on('disconnect', function() {
+        console.log('🔴 WebSocket disconnected');
+        setTimeout(connectWebSocket, 3000);
+      });
+    } catch (error) {
+      console.error('WebSocket error:', error);
+      setTimeout(connectWebSocket, 3000);
+    }
+  }
+
+  async function loadNotifications(reset = true) {
+    if (reset) {
+      currentOffset = 0;
+      hasMore = true;
+    }
+
+    const params = new URLSearchParams({
+      limit: limit,
+      offset: currentOffset,
+      filter: currentFilter
+    });
+
+    try {
+      const response = await fetch(`/api/notifications/list?${params}`);
+      const data = await response.json();
+
+      if (data.success) {
+        const container = document.getElementById('notificationsList');
+        
+        if (reset) {
+          container.innerHTML = '';
+        }
+
+        if (data.notifications.length === 0 && reset) {
+          container.innerHTML = `
+            <div style="text-align:center;padding:40px;color:var(--muted);">
+              <div style="font-size:48px;margin-bottom:16px;">📭</div>
+              <div>No notifications</div>
+            </div>
+          `;
+          document.getElementById('loadMoreBtn').style.display = 'none';
+          return;
+        }
+
+        data.notifications.forEach(n => {
+          container.appendChild(createNotificationElement(n));
+        });
+
+        hasMore = data.notifications.length === limit;
+        document.getElementById('loadMoreBtn').style.display = hasMore ? 'block' : 'none';
+        currentOffset += data.notifications.length;
+
+        updateUnreadCount();
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  }
+
+  function createNotificationElement(notification) {
+    const div = document.createElement('div');
+    div.className = `notification-item ${notification.severity}`;
+    if (!notification.is_read) {
+      div.classList.add('unread');
+    }
+    div.dataset.id = notification.id;
+
+    const iconMap = {
+      'overspend': '⚠️',
+      'anomaly': '🚨',
+      'goal_completed': '🎉',
+      'investment_opportunity': '📈',
+      'budget_alert': '💳',
+      'expense_added': '💲',
+      'weekly_summary': '📊'
+    };
+    const icon = iconMap[notification.type] || '🔔';
+
+    const time = new Date(notification.created_at);
+    const timeStr = time.toLocaleDateString('en-IN', { 
+      day: 'numeric', 
+      month: 'short', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    div.innerHTML = `
+      <div class="icon">${icon}</div>
+      <div class="content" onclick="markRead(${notification.id})">
+        <div class="title">${notification.title}</div>
+        <div class="message">${notification.message}</div>
+        <div class="time">${timeStr}</div>
+      </div>
+      <div class="actions">
+        ${notification.action_url ? `<a href="${notification.action_url}" class="btn btn-gold">${notification.action_label || 'View'}</a>` : ''}
+        <button class="btn btn-ghost" onclick="dismissNotification(${notification.id})">✖</button>
+      </div>
+    `;
+
+    return div;
+  }
+
+  function addNotificationToTop(data) {
+    const container = document.getElementById('notificationsList');
+    const newNotif = createNotificationElement(data);
+    container.insertBefore(newNotif, container.firstChild);
+    
+    // Remove empty state if present
+    const emptyState = container.querySelector('div[style*="text-align:center"]');
+    if (emptyState) {
+      emptyState.remove();
+    }
+  }
+
+  async function markRead(notificationId) {
+    try {
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification_id: notificationId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        const item = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+        if (item) {
+          item.classList.remove('unread');
+          updateUnreadCount();
+        }
+      }
+    } catch (error) {
+      console.error('Error marking read:', error);
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true })
+      });
+      const data = await response.json();
+      if (data.success) {
+        document.querySelectorAll('.notification-item.unread').forEach(el => {
+          el.classList.remove('unread');
+        });
+        updateUnreadCount();
+      }
+    } catch (error) {
+      console.error('Error marking all read:', error);
+    }
+  }
+
+  async function dismissNotification(notificationId) {
+    if (!confirm('Dismiss this notification?')) return;
+    
+    try {
+      const response = await fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification_id: notificationId })
+      });
+      const data = await response.json();
+      if (data.success) {
+        const item = document.querySelector(`.notification-item[data-id="${notificationId}"]`);
+        if (item) {
+          item.remove();
+          updateUnreadCount();
+        }
+      }
+    } catch (error) {
+      console.error('Error dismissing notification:', error);
+    }
+  }
+
+  async function updateUnreadCount() {
+    try {
+      const response = await fetch('/api/notifications/unread-count');
+      const data = await response.json();
+      if (data.success) {
+        document.getElementById('unreadCount').textContent = `Unread: ${data.count}`;
+      }
+    } catch (error) {
+      console.error('Error updating count:', error);
+    }
+  }
+
+  function filterNotifications(filter) {
+    currentFilter = filter;
+    currentOffset = 0;
+    hasMore = true;
+    
+    // Update button styles
+    document.querySelectorAll('[id^="filter"]').forEach(el => {
+      el.style.background = '';
+    });
+    const filterBtn = document.getElementById(`filter${filter.charAt(0).toUpperCase() + filter.slice(1)}`);
+    if (filterBtn) {
+      filterBtn.style.background = 'rgba(212,168,67,0.15)';
+    }
+    
+    loadNotifications(true);
+  }
+
+  function loadMore() {
+    if (hasMore) {
+      loadNotifications(false);
+    }
+  }
+
+  function refreshNotifications() {
+    currentOffset = 0;
+    hasMore = true;
+    loadNotifications(true);
+  }
+
+  // Socket.IO script - add to base.html or include here
+  // Include: <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</script>
+
+<!-- Socket.IO client -->
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+
+{% endblock %}
