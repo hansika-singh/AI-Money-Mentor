@@ -104,6 +104,15 @@ async function load_data() {
         const advice=data.Advice
       }
 }
+  async function loan_calc(){
+    let aiHTML=`<div style="margin-top: 20px; max-width: 900px;">
+    <div class="card" style="width: 100%; box-sizing: border-box;">
+      <div class="card-title" style="color: var(--gold); margin-bottom: 6px;">AI Analysis</div>
+      ${advice}
+    </div>`
+    document.getElementByJd("aiPredictionResult").innerText=aiHtml;
+      
+    
   
           
     
