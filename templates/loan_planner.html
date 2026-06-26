@@ -1,1 +1,29 @@
+{% extends 'base.html' %}
 
+{% block title %}Loan Planner{% endblock %}
+
+{% block content %}
+<div id="sip" class="page active">
+  <div class="page-title">Loan <span>Planner</span></div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; max-width: 900px;">
+    <div class="card">
+      <div class="card-title">Enter Information</div>
+
+      <label>Principal (₹)</label>
+      <input type="number" required min="0" id="principal" placeholder="e.g. 10000">
+
+      <label>Annual Rate of Interest (%)</label>
+      <input type="number" required min="0" id="rate" placeholder="e.g. 12">
+
+      <label>Time (Years)</label>
+      <input type="number" required min="0" id="time" placeholder="e.g. 10">
+
+      <label>Monthly Income (₹)</label>
+      <input type="number" min="0" id="income" placeholder="e.g. 6" value="6" style="margin-bottom:12px;">
+
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-gold" style="flex:1" onclick="calcLoan()" id="sipBtn">Calculate</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="resetLoan()" id="sipResetBtn">Reset</button>
+      </div>
+    
