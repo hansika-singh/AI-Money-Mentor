@@ -28,6 +28,10 @@ def get_stock_price(symbol):
         # Try finding as is first (especially for global stocks like AAPL, MSFT)
         stock = yf.Ticker(symbol)
         hist = stock.history(period="30d")
+        if hist.empty:
+            indian_stock=True
+        else:
+            indian_stock=False
 
         # If empty and no dot in symbol, try appending .NS for Indian stocks
         if hist.empty and "." not in symbol:
@@ -85,7 +89,8 @@ def get_stock_price(symbol):
             "history": history_data,
             "Predicted Price":predicted_tomorrow.get("Predicted Price",0),
             "metrics": metrics,
-            "news": news_data
+            "news": news_data,
+            "indian_stock":indian_stock
         }
         STOCK_CACHE[symbol] = (ret, time.time())
         return ret

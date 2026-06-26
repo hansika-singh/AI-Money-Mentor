@@ -244,6 +244,7 @@
       if (data.error) {
         showResult('stockResult', `⚠ ${data.error}`);
       } else {
+        const curSign = data.indian_stock === false ? '$' : '₹';
         const metrics = data.metrics || {};
         const pe = metrics.pe_ratio !== "N/A" && metrics.pe_ratio !== null ? parseFloat(metrics.pe_ratio).toFixed(1) : "N/A";
         let cap = metrics.market_cap;
@@ -258,7 +259,7 @@
 
         let html = `
           <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">${data.symbol} — Last Price</div>
-          <div class="result-big">₹${fmtNum(data.price)}</div>
+          <div class="result-big">${curSign}${fmtNum(data.price)}</div>
           <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
             <div style="display:flex; justify-content:space-between"><span>52W High</span><strong>₹${metrics.high_52w !== "N/A" && metrics.high_52w !== null ? fmtNum(metrics.high_52w) : "N/A"}</strong></div>
             <div style="display:flex; justify-content:space-between"><span>52W Low</span><strong>₹${metrics.low_52w !== "N/A" && metrics.low_52w !== null ? fmtNum(metrics.low_52w) : "N/A"}</strong></div>
@@ -267,7 +268,7 @@
           </div>
         `;
         showResult('stockResult', html);
-        const predPrice = data["Predicted Price"] ? `₹${fmtNum(data["Predicted Price"])}` : "N/A";
+        const predPrice = data["Predicted Price"] ? `${curSign}${fmtNum(data["Predicted Price"])}` : "N/A";
         let aiHtml = `
           <div style="display: flex; gap: 40px; align-items: center; margin-top: 8px;">
             <div>
@@ -320,7 +321,7 @@
                 grid: { color: 'rgba(255, 255, 255, 0.05)' },
                 ticks: {
                   color: '#5a6a82',
-                  callback: function (value) { return '₹' + fmtNum(value); }
+                  callback: function (value) { return curSign + fmtNum(value); }
                 }
               }
             }
