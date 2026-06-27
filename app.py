@@ -852,7 +852,7 @@ def voice_test():
 
 
 
-# ---------------- COUPLE FINANCE PLANNER ----------------
+
 
 
 
@@ -1174,6 +1174,7 @@ def dismiss_notification():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/notifications/unread-count', methods=['GET'])
 @login_required
 def get_unread_count():
@@ -1196,6 +1197,32 @@ def notification_preferences():
             return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@login_required
+def get_unread_count():
+    try:
+        result = notification_system.get_unread_count(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/notifications/preferences', methods=['GET', 'POST'])
+@login_required
+def notification_preferences():
+    try:
+        if request.method == 'GET':
+            result = notification_system.get_preferences(current_user.id)
+            return jsonify(result)
+        else:
+            data = request.json
+            result = notification_system.setup_preferences(current_user.id, data)
+            return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ---------------- PREDICTIVE FINANCIAL MODELS ----------------
 @app.route('/predictive-alerts')
@@ -1348,6 +1375,7 @@ from utils.fire_planner import FIREPlanner
 
 # ---------------- AUTO REBALANCER ----------------
 @app.route('/rebalancer')
+
 @login_required
 def rebalancer_page():
     return render_template('rebalancer.html', active_page='rebalancer')
@@ -1382,6 +1410,42 @@ def analyze_rebalance():
 # ---------------- FIRE PLANNER ----------------
 @app.route('/fire-planner')
 @login_required
+
+@login_required
+def rebalancer_page():
+    return render_template('rebalancer.html', active_page='rebalancer')
+
+@app.route('/api/rebalance/analyze', methods=['POST'])
+@login_required
+def analyze_rebalance():
+    try:
+        data = request.json
+        holdings = data.get('holdings', [])
+        target = data.get('target', {})
+        if not holdings:
+            return jsonify({'error': 'No holdings provided'}), 400
+        rebalancer = AutoRebalancer(holdings, target)
+        current_allocation = rebalancer.get_current_allocation()
+        rebalance = rebalancer.generate_rebalance_trades()
+        market_signals = {}
+        for h in holdings:
+            signal = rebalancer.get_market_signal(h['symbol'])
+            market_signals[h['symbol']] = signal
+        tax_harvesting = rebalancer.get_tax_harvesting_opportunities()
+        return jsonify({
+            'success': True,
+            'current_allocation': current_allocation,
+            'rebalance': rebalance,
+            'market_signals': market_signals,
+            'tax_harvesting': tax_harvesting
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ---------------- FIRE PLANNER ----------------
+@app.route('/fire-planner')
+@login_required
+
 def fire_planner_page():
     return render_template('fire_planner.html', active_page='fire_planner')
 
@@ -1436,8 +1500,8 @@ def fire_quick():
 
         return jsonify({'error': str(e)}), 500
 
-
         return jsonify({'error': str(e)}), 500 
+
 
       ]
 
@@ -4329,6 +4393,7 @@ def parse_expense_text():
         result_text = response.choices[0].message.content.strip()
 
 
+
         result_text = response.choices[0].message.content.strip()
 
         
@@ -5226,6 +5291,39 @@ def recent_activity():
     activities = sorted(activities, key=lambda x: x["date"], reverse=True)
     return jsonify(activities[:10])
 
+
+# ---------------- FINANCIAL RATIO ANALYZER ----------------
+from utils.financial_ratio_analyzer import FinancialRatioAnalyzer
+
+@app.route('/ratio-analyzer')
+@login_required
+def ratio_analyzer_page():
+    """Financial Ratio Analysis Dashboard"""
+    return render_template('ratio_analyzer.html', active_page='ratio_analyzer')
+
+@app.route('/api/ratios/analyze', methods=['POST'])
+@login_required
+def analyze_ratios():
+    """Analyze financial ratios"""
+    try:
+        data = request.json
+        financial_data = data.get('financial_data', {})
+        industry = data.get('industry', 'general')
+        
+        # Create analyzer
+        analyzer = FinancialRatioAnalyzer(financial_data)
+        
+        # Generate report
+        report = analyzer.generate_report(industry)
+        
+        return jsonify({
+            'success': True,
+            'data': report
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+        
+
 # ---------------- API ALERTS ----------------
 @app.route("/api/alerts", methods=["GET"])
 @login_required
@@ -5267,6 +5365,7 @@ def alerts_history():
             limit = 100
         events = PriceAlertEvent.query.filter(PriceAlertEvent.alert_id.in_(user_alert_ids)).order_by(PriceAlertEvent.triggered_at.desc()).limit(limit).all()
         return jsonify([e.to_dict() for e in events])
+
     except Exception as e:
 
         return jsonify({"error": str(e)}), 400
@@ -5479,6 +5578,7 @@ def create_alert():
         db.session.add(alert)
         db.session.commit()
         return jsonify(alert.to_dict()), 201
+
     except Exception as e:
 
         return jsonify({"error": str(e)}), 400
