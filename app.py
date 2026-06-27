@@ -87,6 +87,7 @@ from utils.financial_predictor import FinancialPredictor
 from utils.auto_rebalancer import AutoRebalancer
 from utils.fire_planner import FIREPlanner
 from utils.bank_integration import BankIntegration
+from utils.scenario_planner import get_user_snapshot, job_change, new_loan, add_child, project_snapshot
 from utils.ledger import LedgerSystem
 from utils.notification_system import NotificationSystem
 
@@ -1440,6 +1441,50 @@ def fire_quick():
 
       ]
 
+
+        # ---------------- SCENARIO PLANNER ----------------
+        @app.route('/scenarios')
+        @login_required
+        def scenarios_page():
+            return render_template('scenarios.html', active_page='scenarios')
+
+        @app.route('/api/scenario/base', methods=['GET'])
+        @login_required
+        def get_base_snapshot():
+            snapshot = get_user_snapshot(current_user.id)
+            return jsonify({'success': True, 'snapshot': snapshot})
+
+        @app.route('/api/scenario/job_change', methods=['POST'])
+        @login_required
+        def scenario_job_change():
+            data = request.json
+            percent = data.get('salary_delta', 0)
+            snapshot = get_user_snapshot(current_user.id)
+            updated = job_change(snapshot, percent)
+            projection = project_snapshot(updated)
+            return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
+
+        @app.route('/api/scenario/new_loan', methods=['POST'])
+        @login_required
+        def scenario_new_loan():
+            data = request.json
+            amount = float(data.get('amount', 0))
+            interest = float(data.get('interest', 0.07))
+            tenure = int(data.get('tenure_years', 15))
+            snapshot = get_user_snapshot(current_user.id)
+            updated = new_loan(snapshot, amount, interest, tenure)
+            projection = project_snapshot(updated)
+            return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
+
+        @app.route('/api/scenario/add_child', methods=['POST'])
+        @login_required
+        def scenario_add_child():
+            data = request.json
+            annual_cost = float(data.get('annual_cost', 0))
+            snapshot = get_user_snapshot(current_user.id)
+            updated = add_child(snapshot, annual_cost)
+            projection = project_snapshot(updated)
+            return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
 
         # ---------------- BANK INTEGRATION ----------------
 from utils.bank_integration import BankIntegration

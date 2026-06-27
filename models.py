@@ -333,6 +333,35 @@ class FinancialGoal(db.Model):
 
 
 # ---------------- WEEKLY DIGEST (Scheduled AI) ----------------
+
+class ChildGoal(db.Model):
+    __tablename__ = "child_goals"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    child_name = db.Column(db.String(120), nullable=False)
+    goal_type = db.Column(db.String(50), nullable=False)  # e.g., 'Education', 'Wedding'
+    target_year = db.Column(db.Integer, nullable=False)  # year when goal is needed
+    inflation_assumption = db.Column(db.Float, default=0.05)  # annual inflation rate
+    current_cost = db.Column(db.Float, nullable=False)  # present estimated cost
+    projected_cost = db.Column(db.Float, nullable=False)  # cost after inflation
+    status = db.Column(db.String(20), default='active')  # active, completed, canceled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "child_name": self.child_name,
+            "goal_type": self.goal_type,
+            "target_year": self.target_year,
+            "inflation_assumption": self.inflation_assumption,
+            "current_cost": self.current_cost,
+            "projected_cost": self.projected_cost,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
 class DigestPreference(db.Model):
     """Single-row preference store (no user table in current app)."""
     __tablename__ = "digest_preferences"
