@@ -74,6 +74,7 @@ from utils.stock import get_stock_price, get_stock_dividends
 from utils.expense_track import calculate_expense, insights
 from utils.validation import ValidationError, validate_string, validate_float, validate_int, validate_history
 from utils.safety_engine import SafetyEngine
+from utils.loan_planner import data_input
 
 from utils.rag_system import RAGSystem
 from utils.fx import convert_to_base, get_rate
