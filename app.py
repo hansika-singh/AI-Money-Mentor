@@ -3808,7 +3808,31 @@ def money_score():
             status = "Average ⚠️"
         else:
             status = "Needs Improvement ❌"
-        return jsonify({"score": score, "status": status})
+
+        breakdown = calculate_money_score_breakdown(
+            income=income,
+            expenses=expenses,
+            savings=savings,
+            investments=investments,
+            debt=debt,
+            emergency_fund=emergency,
+        )
+
+        # Keep backward compatibility: existing frontend expects {score, status}
+        return jsonify({
+            "score": score,
+            "status": status,
+            "breakdown": breakdown,
+            "peers": {
+                "anonymous": True,
+                "benchmarks": {
+                    "savings_rate": 23.0,
+                    "investment_rate": 12.0,
+                    "debt_ratio": 32.0,
+                    "emergency_coverage_months": 4.0,
+                }
+            },
+        })
     except ValidationError as e:
         raise e
     except Exception as e:

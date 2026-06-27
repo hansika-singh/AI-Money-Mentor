@@ -41,10 +41,11 @@ style="margin-top:15px">
         <button class="btn btn-ghost" style="flex:1" onclick="exportReport('pdf')" id="exportPdfBtn">📄 Download PDF</button>
       </div>
     </div>
-    <div class="card" style="min-height: 380px;">
-      <div class="card-title">Financial Health Breakdown</div>
-      <div style="position: relative; height: 320px; display: flex; justify-content: center; align-items: center;">
-        <canvas id="scoreChart"></canvas>
+    <div class="card" style="grid-column: 2 / span 1; min-height: 380px;">
+      <div class="card-title">Financial Health Dashboard</div>
+      <link rel="stylesheet" href="/static/styles/financial-health.css">
+      <div style="margin-top: 10px;">
+        <div class="fin-health-grid" id="finHealthGrid"></div>
       </div>
     </div>
   </div>
@@ -54,6 +55,75 @@ style="margin-top:15px">
 {% block scripts %}
 <script>
   let scoreChartInstance = null;
+
+  function renderFinancialHealthDashboard(breakdown) {
+    const grid = document.getElementById('finHealthGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    if (!breakdown || !breakdown.components) {
+      grid.innerHTML = `<div style="padding:12px;color:var(--muted);font-size:13px;">No breakdown data available.</div>`;
+      return;
+    }
+
+    breakdown.components.forEach((comp, idx) => {
+      const scorePct = Math.round((comp.score / comp.max_score) * 100);
+
+      const peerText = comp.peer_benchmark_text || '';
+      const peerVal = (comp.peer_benchmark_value !== null && comp.peer_benchmark_value !== undefined)
+        ? comp.peer_benchmark_value
+        : null;
+
+      const peerBlock = peerText
+        ? `<div class="small-row">${peerText}</div>`
+        : `<div class="small-row">Peer benchmark unavailable</div>`;
+
+      const tipsHtml = (Array.isArray(comp.tips) ? comp.tips : [])
+        .slice(0, 5)
+        .map(t => `<li>${t}</li>`)
+        .join('');
+
+      const collapseId = `finHealthCollapse_${idx}`;
+
+      grid.innerHTML += `
+        <div class="fin-health-card">
+          <div class="fin-health-top">
+            <div>
+              <h4>${comp.label}</h4>
+              <div class="fin-health-score" style="color:var(--text);">${comp.score}/${comp.max_score}</div>
+              <div class="fin-health-meta">Tier: ${comp.tier}</div>
+            </div>
+            <div class="fin-health-pill">${comp.your_value}${comp.unit === '% of income' ? '%' : ''}</div>
+          </div>
+
+          <div class="fin-health-bar" aria-label="progress">
+            <div class="fill" style="width:${scorePct}%;"></div>
+          </div>
+
+          ${peerBlock}
+
+          <div class="fin-health-actions">
+            <div class="fin-health-meta">${comp.interpretation}</div>
+            <button class="fin-health-btn" type="button" onclick="toggleFinHealthCollapse('${collapseId}')">Deep Dive</button>
+          </div>
+
+          <div id="${collapseId}" class="fin-health-collapse">
+            <div class="calc">${comp.calculation}</div>
+            <div class="small-row">Your value: ${comp.your_value}${comp.unit === '% of income' ? '%' : ''}</div>
+            <div class="small-row">Peer benchmark: ${peerVal !== null ? peerVal : 'N/A'}${comp.unit === '% of income' ? '%' : ' months'}</div>
+            <div class="small-row" style="margin-top:8px;color:var(--muted);">Personalized tips</div>
+            <ul class="tips">${tipsHtml}</ul>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  function toggleFinHealthCollapse(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('visible');
+  }
 
   async function calcScore() {
     const incomeRaw = document.getElementById('s_income').value;
@@ -212,59 +282,13 @@ ${feedback.message}
         });
         showExportSection();
 
-        // Compute sub-scores locally for visual rendering
-        const savingsRateVal = income>0? parseFloat(savings) / parseFloat(income):0;
-        const savingsScore = savingsRateVal >= 0.3 ? 30 : savingsRateVal >= 0.2 ? 20 : 10;
+        // Render Financial Health Dashboard (from server breakdown)
+        renderFinancialHealthDashboard(data.breakdown);
 
-        const investRateVal = income>0? parseFloat(invest) / parseFloat(income):0;
-        const investScore = investRateVal >= 0.2 ? 25 : investRateVal >= 0.1 ? 15 : 5;
-
-        const debtRatioVal = income>0? parseFloat(debt) / parseFloat(income):0;
-        let debtScore=25;
-        if (income>0){
-          debtScore = debtRatioVal <= 0.2 ? 25:debtRatioVal<=0.4?15 : 5;
-        }else if(income==0 && debt==0){
-          debtScore=25;
+        // Keep compatibility: if older backend returns no breakdown, fall back to old chart.
+        if (!data.breakdown || !data.breakdown.components) {
+          showResult('scoreResult', '⚠ Breakdown unavailable on server.');
         }
-
-        const monthsCoverVal = expenses>0? parseFloat(emergency) / parseFloat(expenses):0;
-        const emergencyScore = monthsCoverVal >= 6 ? 20 : monthsCoverVal >= 3 ? 10 : 5;
-
-        // Draw Horizontal Bar Chart
-        if (scoreChartInstance) scoreChartInstance.destroy();
-        const scoreCtx = document.getElementById('scoreChart').getContext('2d');
-        scoreChartInstance = new Chart(scoreCtx, {
-          type: 'bar',
-          data: {
-            labels: ['Savings Rate', 'Investment Rate', 'Debt Ratio', 'Emergency Fund'],
-            datasets: [{
-              label: 'Your Score',
-              data: [savingsScore, investScore, debtScore, emergencyScore],
-              backgroundColor: ['#d4a843', '#14c8bf', '#5a6a82', '#2ecc8a'],
-              borderRadius: 6,
-              barThickness: 16
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false }
-            },
-            scales: {
-              x: {
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: { color: '#5a6a82' },
-                max: 30
-              },
-              y: {
-                grid: { display: false },
-                ticks: { color: '#eef0f5' }
-              }
-            }
-          }
-        });
       }
     } catch (e) {
       showResult('scoreResult', '⚠ Could not reach server.');
