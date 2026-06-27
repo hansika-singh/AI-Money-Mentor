@@ -80,7 +80,7 @@ async function send_data() {
   const rate_front=document.getElementById("rate").value;
   const time_front=document.getElementById("time").value;
   const income_front=document.getElementById("income").value;
-  if (!principal_front||!rate_front||!time_front||!income) {
+  if (!principal_front||!rate_front||!time_front||!income_front) {
     showResult("⚠ Fill in all fields.");
       return;
   }
@@ -97,7 +97,6 @@ async function load_data(inputs) {
           
       if (data.error) {
         showResult(`⚠ ${data.error}`);
-      });
       }else { return data;
       }
   }catch(error) {
@@ -123,10 +122,10 @@ async function load_data(inputs) {
     
     let aiHtml=`<div style="margin-top: 20px; max-width: 900px;">
     <div class="card" style="width: 100%; box-sizing: border-box;">
-      <div class="card-title" style="color: var(--gold); margin-bottom: 6px;">AI Analysis</div>
-      ${advice}
+    <div class="card-title" style="color: var(--gold); margin-bottom: 6px;">AI Analysis</div>
+     ${advice}
     </div>`;
-    document.getElementByJd("aiPredictionResult").innerText=aiHtml;
+    document.getElementById("aiPredictionResult").innerText=aiHtml;
 
     document.getElementById("LoanEmicalc").innerHTML = `
     <p>Amount: ₹${loan_amt}</p>
@@ -181,7 +180,8 @@ async function load_data(inputs) {
   
     if (i === N || dynamic_remaining < 0) {
       dynamic_remaining = 0;
-  }
+    }
+    }
 
     balances.push(Math.round(dynamic_remaining));
     const ctx = document.getElementById('Chart').getContext('2d');
@@ -195,8 +195,8 @@ async function load_data(inputs) {
       borderColor: '#d4af37'
     }]
   }
+});
 }
-    
   
 function resetLoan() {
   document.getElementById("principal").value = "";
@@ -206,7 +206,10 @@ function resetLoan() {
   document.getElementById("LoanEmicalc").innerHTML = '<p style="color: var(--muted); font-size: 13px; margin: 0; padding-top: 4px;">Enter the info above to view the results</p>';
   document.getElementById("Reliability").innerHTML = '<p style="color: var(--muted); font-size: 13px; margin: 0; padding-top: 4px;">Enter the info above to view the results</p>';
   document.getElementById("aiPredictionResult").innerHTML = '<p style="color: var(--muted); font-size: 13px; margin: 0; padding-top: 4px;">Enter the info above to view the AI analysis.</p>';
-}
+  if (loanChart) {
+    loanChart.destroy();
+    loanChart = null;
+  }
   </script>
 
 
