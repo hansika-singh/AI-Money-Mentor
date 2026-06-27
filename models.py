@@ -1324,6 +1324,92 @@ class NotificationPreference(db.Model):
 
 
 
+        # ============================================
+# MFA MODELS
+# ============================================
+
+class MFASetting(db.Model):
+    """MFA Settings for User"""
+    __tablename__ = 'mfa_settings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    mfa_enabled = db.Column(db.Boolean, default=False)
+    totp_secret = db.Column(db.String(100), nullable=True)
+    totp_enabled = db.Column(db.Boolean, default=False)
+    backup_codes = db.Column(db.Text, nullable=True)  # JSON array of hashed codes
+    webauthn_enabled = db.Column(db.Boolean, default=False)
+    webauthn_credential_id = db.Column(db.String(200), nullable=True)
+    webauthn_public_key = db.Column(db.Text, nullable=True)
+    webauthn_sign_count = db.Column(db.Integer, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship("User", backref="mfa_settings")
+    
+    def to_dict(self):
+        return {
+            'mfa_enabled': self.mfa_enabled,
+            'totp_enabled': self.totp_enabled,
+            'backup_codes_remaining': len(json.loads(self.backup_codes)) if self.backup_codes else 0,
+            'webauthn_enabled': self.webauthn_enabled,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class TrustedDevice(db.Model):
+    """Trusted Devices for MFA"""
+    __tablename__ = 'trusted_devices'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    device_name = db.Column(db.String(100), nullable=False)
+    device_type = db.Column(db.String(50), nullable=True)  # browser, mobile, desktop
+    user_agent = db.Column(db.String(255), nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
+    last_used = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    user = db.relationship("User", backref="trusted_devices")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'device_name': self.device_name,
+            'device_type': self.device_type,
+            'last_used': self.last_used.isoformat() if self.last_used else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'is_active': self.is_active
+        }
+
+
+class SecurityEvent(db.Model):
+    """Security Events Log"""
+    __tablename__ = 'security_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    event_type = db.Column(db.String(50), nullable=False)  # login, mfa_enabled, mfa_disabled, backup_code_used, device_added
+    severity = db.Column(db.String(20), default='info')  # info, warning, critical
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship("User", backref="security_events")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'event_type': self.event_type,
+            'severity': self.severity,
+            'details': self.details,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+        }     
+
+
 
 
 class MilestoneNotification(db.Model):
@@ -1387,5 +1473,6 @@ class SipSchedule(db.Model):
 
 
         }
+
 
 

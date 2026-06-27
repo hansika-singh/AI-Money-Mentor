@@ -39,5 +39,13 @@ Pillow==10.2.0
 transformers==4.36.0
 torch==2.1.0
 langdetect==1.0.9
+
+
+# MFA Dependencies
+pyotp==2.9.0
+qrcode==7.4.2
+Pillow==10.2.0
+webauthn==2.1.0
+cryptography==41.0.7
 eventlet==0.33.3
 

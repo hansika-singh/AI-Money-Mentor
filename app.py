@@ -730,7 +730,286 @@ def export_parsed_expenses():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+        # ---------------- MFA SYSTEM ----------------
+from utils.mfa_system import MFASystem
+
+@app.route('/security-settings')
+@login_required
+def security_settings_page():
+    """Security Settings Page"""
+    return render_template('security_settings.html', active_page='security_settings')
+
+@app.route('/api/mfa/status', methods=['GET'])
+@login_required
+def mfa_status():
+    """Get MFA status"""
+    try:
+        mfa = MFASystem(current_user)
+        status = mfa.get_mfa_status()
+        return jsonify({'success': True, 'status': status})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/totp/setup', methods=['GET'])
+@login_required
+def mfa_totp_setup():
+    """Setup TOTP"""
+    try:
+        mfa = MFASystem(current_user)
+        result = mfa.setup_totp()
+        return jsonify({
+            'success': True,
+            'secret': result['secret'],
+            'qr_code': result['qr_code'],
+            'backup_codes': result['backup_codes']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/totp/verify', methods=['POST'])
+@login_required
+def mfa_totp_verify():
+    """Verify TOTP code"""
+    try:
+        data = request.json
+        code = data.get('code')
         
+        if not code:
+            return jsonify({'error': 'Code is required'}), 400
+        
+        mfa = MFASystem(current_user)
+        if mfa.verify_totp(code):
+            return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
+        else:
+            return jsonify({'error': 'Invalid code'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/webauthn/setup', methods=['GET'])
+@login_required
+def mfa_webauthn_setup():
+    """Setup WebAuthn"""
+    try:
+        mfa = MFASystem(current_user)
+        result = mfa.setup_webauthn()
+        return jsonify({
+            'success': True,
+            'options': result['options']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/webauthn/verify', methods=['POST'])
+@login_required
+def mfa_webauthn_verify():
+    """Verify WebAuthn registration"""
+    try:
+        data = request.json
+        mfa = MFASystem(current_user)
+        
+        if mfa.verify_webauthn(data):
+            return jsonify({'success': True, 'message': 'WebAuthn verified'})
+        else:
+            return jsonify({'error': 'Verification failed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices', methods=['GET'])
+@login_required
+def mfa_get_devices():
+    """Get trusted devices"""
+    try:
+        mfa = MFASystem(current_user)
+        devices = mfa.get_trusted_devices()
+        return jsonify({'success': True, 'devices': devices})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices/add', methods=['POST'])
+@login_required
+def mfa_add_device():
+    """Add trusted device"""
+    try:
+        data = request.json
+        device_name = data.get('device_name')
+        
+        if not device_name:
+            return jsonify({'error': 'Device name is required'}), 400
+        
+        mfa = MFASystem(current_user)
+        device = mfa.add_trusted_device(
+            device_name,
+            request.headers.get('User-Agent'),
+            request.remote_addr
+        )
+        
+        return jsonify({'success': True, 'device': device.to_dict()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices/remove/<int:device_id>', methods=['DELETE'])
+@login_required
+def mfa_remove_device(device_id):
+    """Remove trusted device"""
+    try:
+        mfa = MFASystem(current_user)
+        if mfa.remove_trusted_device(device_id):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Device not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/backup-codes', methods=['POST'])
+@login_required
+def mfa_generate_backup_codes():
+    """Generate backup codes"""
+    try:
+        mfa = MFASystem(current_user)
+        codes = mfa.generate_new_backup_codes()
+        return jsonify({'success': True, 'codes': codes})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/security-events', methods=['GET'])
+@login_required
+def mfa_security_events():
+    """Get security events"""
+    try:
+        mfa = MFASystem(current_user)
+        events = mfa.get_security_events()
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/disable', methods=['POST'])
+@login_required
+def mfa_disable():
+    """Disable MFA"""
+    try:
+        mfa = MFASystem(current_user)
+        if mfa.disable_mfa():
+            return jsonify({'success': True, 'message': 'MFA disabled'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+   # ---------------- TAX FILING SYSTEM ----------------
+from utils.tax_filing import TaxFilingSystem
+
+@app.route('/tax-filing')
+@login_required
+def tax_filing_page():
+    """Tax Filing Page"""
+    return render_template('tax_filing.html', active_page='tax_filing')
+
+@app.route('/api/tax/filing/calculate', methods=['POST'])
+@login_required
+def tax_filing_calculate():
+    """Calculate tax for user"""
+    try:
+        # Get user financial data
+        user_data = {
+            'name': current_user.username,
+            'email': current_user.email,
+            'salary': 800000,  # Default, can be fetched from user profile
+            'business_income': 0,
+            'capital_gains': 0,
+            'rental_income': 0,
+            'other_income': 0,
+            'deduction_80c': 150000,
+            'deduction_80d': 25000,
+            'deduction_80e': 0,
+            'deduction_80g': 0,
+            'deduction_80tta': 0,
+            'hra_deduction': 60000,
+            'tds': 60000,
+            'advance_tax': 0,
+            'self_assessment_tax': 0,
+            'pan': 'ABCDE1234F',
+            'aadhar': '1234-5678-9012',
+            'bank_account': '1234567890',
+            'ifsc': 'SBIN0001234'
+        }
+        
+        tax_system = TaxFilingSystem(user_data)
+        tax_result = tax_system.calculate_tax()
+        recommendations = tax_system.get_tax_saving_recommendations()
+        itr_data = tax_system.generate_itr('auto')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_calculation': tax_result,
+                'recommendations': recommendations,
+                'itr_data': itr_data,
+                'user_data': user_data
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tax/filing/itr/generate', methods=['POST'])
+@login_required
+def tax_filing_generate_itr():
+    """Generate ITR form"""
+    try:
+        data = request.json
+        form_type = data.get('form_type', 'auto')
+        
+        user_data = {
+            'name': current_user.username,
+            'email': current_user.email,
+            'salary': 800000,
+            'deduction_80c': 150000,
+            'deduction_80d': 25000,
+            'hra_deduction': 60000,
+            'pan': 'ABCDE1234F'
+        }
+        
+        tax_system = TaxFilingSystem(user_data)
+        itr = tax_system.generate_itr(form_type)
+        
+        return jsonify({
+            'success': True,
+            'itr': itr
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tax/filing/form16/parse', methods=['POST'])
+@login_required
+def tax_filing_parse_form16():
+    """Parse Form 16 PDF"""
+    try:
+        if 'form16' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['form16']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+        
+        tax_system = TaxFilingSystem({})
+        result = tax_system.parse_form16(tmp_path)
+        
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+             
+
 # ---------------- RETIREMENT ----------------
 @app.route('/retirement')
 def retirement():
