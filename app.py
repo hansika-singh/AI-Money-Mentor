@@ -569,7 +569,7 @@ def logout():
     logout_user()
     return jsonify({"status": "success"})
 
-@app.route("/")
+@app.route("/", methods=["GET","POST"])
 def home():
     return render_template("dashboard.html", active_page="dashboard")
 
