@@ -1194,7 +1194,287 @@ def export_parsed_expenses():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+
+        # ---------------- MFA SYSTEM ----------------
+from utils.mfa_system import MFASystem
+
+@app.route('/security-settings')
+@login_required
+def security_settings_page():
+    """Security Settings Page"""
+    return render_template('security_settings.html', active_page='security_settings')
+
+@app.route('/api/mfa/status', methods=['GET'])
+@login_required
+def mfa_status():
+    """Get MFA status"""
+    try:
+        mfa = MFASystem(current_user)
+        status = mfa.get_mfa_status()
+        return jsonify({'success': True, 'status': status})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/totp/setup', methods=['GET'])
+@login_required
+def mfa_totp_setup():
+    """Setup TOTP"""
+    try:
+        mfa = MFASystem(current_user)
+        result = mfa.setup_totp()
+        return jsonify({
+            'success': True,
+            'secret': result['secret'],
+            'qr_code': result['qr_code'],
+            'backup_codes': result['backup_codes']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/totp/verify', methods=['POST'])
+@login_required
+def mfa_totp_verify():
+    """Verify TOTP code"""
+    try:
+        data = request.json
+        code = data.get('code')
         
+        if not code:
+            return jsonify({'error': 'Code is required'}), 400
+        
+        mfa = MFASystem(current_user)
+        if mfa.verify_totp(code):
+            return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
+        else:
+            return jsonify({'error': 'Invalid code'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/webauthn/setup', methods=['GET'])
+@login_required
+def mfa_webauthn_setup():
+    """Setup WebAuthn"""
+    try:
+        mfa = MFASystem(current_user)
+        result = mfa.setup_webauthn()
+        return jsonify({
+            'success': True,
+            'options': result['options']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/webauthn/verify', methods=['POST'])
+@login_required
+def mfa_webauthn_verify():
+    """Verify WebAuthn registration"""
+    try:
+        data = request.json
+        mfa = MFASystem(current_user)
+        
+        if mfa.verify_webauthn(data):
+            return jsonify({'success': True, 'message': 'WebAuthn verified'})
+        else:
+            return jsonify({'error': 'Verification failed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices', methods=['GET'])
+@login_required
+def mfa_get_devices():
+    """Get trusted devices"""
+    try:
+        mfa = MFASystem(current_user)
+        devices = mfa.get_trusted_devices()
+        return jsonify({'success': True, 'devices': devices})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices/add', methods=['POST'])
+@login_required
+def mfa_add_device():
+    """Add trusted device"""
+    try:
+        data = request.json
+        device_name = data.get('device_name')
+        
+        if not device_name:
+            return jsonify({'error': 'Device name is required'}), 400
+        
+        mfa = MFASystem(current_user)
+        device = mfa.add_trusted_device(
+            device_name,
+            request.headers.get('User-Agent'),
+            request.remote_addr
+        )
+        
+        return jsonify({'success': True, 'device': device.to_dict()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/devices/remove/<int:device_id>', methods=['DELETE'])
+@login_required
+def mfa_remove_device(device_id):
+    """Remove trusted device"""
+    try:
+        mfa = MFASystem(current_user)
+        if mfa.remove_trusted_device(device_id):
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Device not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/backup-codes', methods=['POST'])
+@login_required
+def mfa_generate_backup_codes():
+    """Generate backup codes"""
+    try:
+        mfa = MFASystem(current_user)
+        codes = mfa.generate_new_backup_codes()
+        return jsonify({'success': True, 'codes': codes})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/security-events', methods=['GET'])
+@login_required
+def mfa_security_events():
+    """Get security events"""
+    try:
+        mfa = MFASystem(current_user)
+        events = mfa.get_security_events()
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mfa/disable', methods=['POST'])
+@login_required
+def mfa_disable():
+    """Disable MFA"""
+    try:
+        mfa = MFASystem(current_user)
+        if mfa.disable_mfa():
+            return jsonify({'success': True, 'message': 'MFA disabled'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+   # ---------------- TAX FILING SYSTEM ----------------
+from utils.tax_filing import TaxFilingSystem
+
+@app.route('/tax-filing')
+@login_required
+def tax_filing_page():
+    """Tax Filing Page"""
+    return render_template('tax_filing.html', active_page='tax_filing')
+
+@app.route('/api/tax/filing/calculate', methods=['POST'])
+@login_required
+def tax_filing_calculate():
+    """Calculate tax for user"""
+    try:
+        # Get user financial data
+        user_data = {
+            'name': current_user.username,
+            'email': current_user.email,
+            'salary': 800000,  # Default, can be fetched from user profile
+            'business_income': 0,
+            'capital_gains': 0,
+            'rental_income': 0,
+            'other_income': 0,
+            'deduction_80c': 150000,
+            'deduction_80d': 25000,
+            'deduction_80e': 0,
+            'deduction_80g': 0,
+            'deduction_80tta': 0,
+            'hra_deduction': 60000,
+            'tds': 60000,
+            'advance_tax': 0,
+            'self_assessment_tax': 0,
+            'pan': 'ABCDE1234F',
+            'aadhar': '1234-5678-9012',
+            'bank_account': '1234567890',
+            'ifsc': 'SBIN0001234'
+        }
+        
+        tax_system = TaxFilingSystem(user_data)
+        tax_result = tax_system.calculate_tax()
+        recommendations = tax_system.get_tax_saving_recommendations()
+        itr_data = tax_system.generate_itr('auto')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_calculation': tax_result,
+                'recommendations': recommendations,
+                'itr_data': itr_data,
+                'user_data': user_data
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tax/filing/itr/generate', methods=['POST'])
+@login_required
+def tax_filing_generate_itr():
+    """Generate ITR form"""
+    try:
+        data = request.json
+        form_type = data.get('form_type', 'auto')
+        
+        user_data = {
+            'name': current_user.username,
+            'email': current_user.email,
+            'salary': 800000,
+            'deduction_80c': 150000,
+            'deduction_80d': 25000,
+            'hra_deduction': 60000,
+            'pan': 'ABCDE1234F'
+        }
+        
+        tax_system = TaxFilingSystem(user_data)
+        itr = tax_system.generate_itr(form_type)
+        
+        return jsonify({
+            'success': True,
+            'itr': itr
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tax/filing/form16/parse', methods=['POST'])
+@login_required
+def tax_filing_parse_form16():
+    """Parse Form 16 PDF"""
+    try:
+        if 'form16' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['form16']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+        
+        tax_system = TaxFilingSystem({})
+        result = tax_system.parse_form16(tmp_path)
+
+        
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+             
+
 # ---------------- RETIREMENT ----------------
 @app.route('/retirement')
 def retirement():
@@ -1311,7 +1591,7 @@ def voice_test():
 
 
 
-# ---------------- COUPLE FINANCE PLANNER ----------------
+
 
 
 
@@ -1639,6 +1919,7 @@ def dismiss_notification():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/notifications/unread-count', methods=['GET'])
 @login_required
 def get_unread_count():
@@ -1661,6 +1942,32 @@ def notification_preferences():
             return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+@app.route('/api/notifications/unread-count', methods=['GET'])
+@login_required
+def get_unread_count():
+    try:
+        result = notification_system.get_unread_count(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/notifications/preferences', methods=['GET', 'POST'])
+@login_required
+def notification_preferences():
+    try:
+        if request.method == 'GET':
+            result = notification_system.get_preferences(current_user.id)
+            return jsonify(result)
+        else:
+            data = request.json
+            result = notification_system.setup_preferences(current_user.id, data)
+            return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ---------------- PREDICTIVE FINANCIAL MODELS ----------------
 @app.route('/predictive-alerts')
@@ -1813,6 +2120,42 @@ from utils.fire_planner import FIREPlanner
 
 # ---------------- AUTO REBALANCER ----------------
 @app.route('/rebalancer')
+
+@login_required
+def rebalancer_page():
+    return render_template('rebalancer.html', active_page='rebalancer')
+
+@app.route('/api/rebalance/analyze', methods=['POST'])
+@login_required
+def analyze_rebalance():
+    try:
+        data = request.json
+        holdings = data.get('holdings', [])
+        target = data.get('target', {})
+        if not holdings:
+            return jsonify({'error': 'No holdings provided'}), 400
+        rebalancer = AutoRebalancer(holdings, target)
+        current_allocation = rebalancer.get_current_allocation()
+        rebalance = rebalancer.generate_rebalance_trades()
+        market_signals = {}
+        for h in holdings:
+            signal = rebalancer.get_market_signal(h['symbol'])
+            market_signals[h['symbol']] = signal
+        tax_harvesting = rebalancer.get_tax_harvesting_opportunities()
+        return jsonify({
+            'success': True,
+            'current_allocation': current_allocation,
+            'rebalance': rebalance,
+            'market_signals': market_signals,
+            'tax_harvesting': tax_harvesting
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ---------------- FIRE PLANNER ----------------
+@app.route('/fire-planner')
+@login_required
+
 @login_required
 def rebalancer_page():
     return render_template('rebalancer.html', active_page='rebalancer')
@@ -1884,6 +2227,7 @@ def analyze_rebalance():
 # ---------------- FIRE PLANNER ----------------
 @app.route('/fire-planner')
 @login_required
+
 def fire_planner_page():
     return render_template('fire_planner.html', active_page='fire_planner')
 
@@ -1938,8 +2282,8 @@ def fire_quick():
 
         return jsonify({'error': str(e)}), 500
 
-
         return jsonify({'error': str(e)}), 500 
+
 
       ]
 
@@ -5138,6 +5482,7 @@ def parse_expense_text():
         result_text = response.choices[0].message.content.strip()
 
 
+
         result_text = response.choices[0].message.content.strip()
 
         
@@ -6036,6 +6381,39 @@ def recent_activity():
     activities = sorted(activities, key=lambda x: x["date"], reverse=True)
     return jsonify(activities[:10])
 
+
+# ---------------- FINANCIAL RATIO ANALYZER ----------------
+from utils.financial_ratio_analyzer import FinancialRatioAnalyzer
+
+@app.route('/ratio-analyzer')
+@login_required
+def ratio_analyzer_page():
+    """Financial Ratio Analysis Dashboard"""
+    return render_template('ratio_analyzer.html', active_page='ratio_analyzer')
+
+@app.route('/api/ratios/analyze', methods=['POST'])
+@login_required
+def analyze_ratios():
+    """Analyze financial ratios"""
+    try:
+        data = request.json
+        financial_data = data.get('financial_data', {})
+        industry = data.get('industry', 'general')
+        
+        # Create analyzer
+        analyzer = FinancialRatioAnalyzer(financial_data)
+        
+        # Generate report
+        report = analyzer.generate_report(industry)
+        
+        return jsonify({
+            'success': True,
+            'data': report
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+        
+
 # ---------------- API ALERTS ----------------
 @app.route("/api/alerts", methods=["GET"])
 @login_required
@@ -6077,6 +6455,7 @@ def alerts_history():
             limit = 100
         events = PriceAlertEvent.query.filter(PriceAlertEvent.alert_id.in_(user_alert_ids)).order_by(PriceAlertEvent.triggered_at.desc()).limit(limit).all()
         return jsonify([e.to_dict() for e in events])
+
     except Exception as e:
 
         return jsonify({"error": str(e)}), 400
@@ -6290,6 +6669,7 @@ def create_alert():
         db.session.add(alert)
         db.session.commit()
         return jsonify(alert.to_dict()), 201
+
     except Exception as e:
 
         return jsonify({"error": str(e)}), 400
