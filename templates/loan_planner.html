@@ -73,43 +73,37 @@
 {% block scripts %}
 <script>
 let loanChart = null;
-async function send_data() {
-  const principal_front=document.getElementById("principal").value;
-  const rate_front=document.getElementById("rate").value;
-  const time_front=document.getElementById("time").value;
-  const income_front=document.getElementById("income").value;
-  if (!principal_front||!rate_front||!time_front||!income_front) {
-    alert("⚠ Fill in all fields.");
+
+  
+async function calcLoan(){
+    
+    const principal_front=document.getElementById("principal").value;
+    const rate_front=document.getElementById("rate").value;
+    const time_front=document.getElementById("time").value;
+    const income_front=document.getElementById("income").value;
+    if (!principal_front||!rate_front||!time_front||!income_front) {
+      alert("⚠ Fill in all fields.");
       return;
-  }
-  return { principal_front, rate_front, time_front, income_front };
-}
-async function load_data(inputs) {
-  try{
+    }
+
+    try{
       const data = await apiFetch('/loan_planner', {
-        principal: parseFloat(inputs.principal_front),
-        rate: parseFloat(inputs.rate_front),
-        time: parseFloat(inputs.time_front),
-        income: parseFloat(inputs.income_front)
+        principal: parseFloat(principal_front),
+        rate: parseFloat(rate_front),
+        time: parseFloat(time_front),
+        income: parseFloat(income_front)
       });
           
       if (data.error) {
         alert(`⚠ ${data.error}`);
         return null;
-      }else { return data;
       }
+      
   }catch(error) {
     console.error("API Error:", error);
     return null;
   }
-}
   
-  async function calcLoan(){
-    const inputs = await send_data();
-    if (!inputs) return;
-
-    const data = await load_data(inputs);
-    if (!data) return;
     
     const loan_amt=data.Loan_Amount;
     const loan_int=data.Loan_Interest;
@@ -160,9 +154,9 @@ async function load_data(inputs) {
 
     let years=[];
     let balances=[];
-    let P = parseFloat(inputs.principal_front);                  
-    let R = parseFloat(inputs.rate_front) / 100;    
-    let N = parseInt(inputs.time_front); 
+    let P = parseFloat(principal_front);                  
+    let R = parseFloat(rate_front) / 100;    
+    let N = parseInt(time_front); 
     let currentBalance = P;
 
     for (let i = 1; i <= N; i++) {
