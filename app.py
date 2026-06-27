@@ -568,7 +568,7 @@ def logout():
     logout_user()
     return jsonify({"status": "success"})
 
-@app.route("/",methods=["GET","POST"])
+@app.route("/")
 def home():
     return render_template("dashboard.html", active_page="dashboard")
 
