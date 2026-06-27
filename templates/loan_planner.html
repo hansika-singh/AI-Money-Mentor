@@ -67,6 +67,7 @@
       </div>
      </div>
    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -118,9 +119,7 @@ async function load_data(inputs) {
     const zone=data.Zone;
     const advice=data.Advice;
     
-    let aiHtml=`<div style="margin-top: 20px; max-width: 900px;">
-    <div class="card" style="width: 100%; box-sizing: border-box;">
-    <div class="card-title" style="color: var(--gold); margin-bottom: 6px;">AI Analysis</div>
+    let aiHtml=`<div style="color: var(--muted); font-size: 14px; margin: 0;
      ${advice}
     </div>`;
     document.getElementById("aiPredictionResult").innerHTML=aiHtml;
@@ -179,9 +178,12 @@ async function load_data(inputs) {
     if (i === N || dynamic_remaining < 0) {
       dynamic_remaining = 0;
     }
+    balances.push(Math.round(dynamic_remaining));
     }
 
-    balances.push(Math.round(dynamic_remaining));
+    if (loanChart) {
+    loanChart.destroy();
+    }
     const ctx = document.getElementById('Chart').getContext('2d');
     loanChart = new Chart(ctx, {
     type: 'line',
@@ -209,6 +211,7 @@ function resetLoan() {
     loanChart = null;
   }
   </script>
+{% endblock %}
 
 
     
