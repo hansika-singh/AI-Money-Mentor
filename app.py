@@ -606,7 +606,7 @@ def loan():
 @login_required
 def get_details():
     try:
-        data = request.json() or {}
+        data = request.get_json() or {}
         principal = float(data.get("principal", 0))
         rate = float(data.get("rate", 0))
         time_years = float(data.get("time", 0))
