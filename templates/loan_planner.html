@@ -82,12 +82,12 @@ async function calcLoan(){
     const time_front=document.getElementById("time").value;
     const income_front=document.getElementById("income").value;
     if (!principal_front||!rate_front||!time_front||!income_front) {
-      alert("⚠ Fill in all fields.");
+      showResult("⚠ Fill in all fields.");
       return;
     }
 
     try{
-      const data = await apiFetch('/loan_planner', {
+      const data = await apiFetch('/loan_info', {
         principal: parseFloat(principal_front),
         rate: parseFloat(rate_front),
         time: parseFloat(time_front),
