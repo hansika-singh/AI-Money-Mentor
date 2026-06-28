@@ -106,8 +106,20 @@ if not GROQ_API_KEY or GROQ_API_KEY.strip() in ("", "your_groq_api_key_here"):
 else:
     client = Groq(api_key=GROQ_API_KEY)
 
+# ---------------- IMPORT UTILS ----------------
+from utils.sip import calculate_sip, calculate_goal_sip, calculate_stepup_sip
+from utils.tax import calculate_tax, tax_optimization_module
+from utils.pdf_parser import extract_income
+from utils.money_score import calculate_money_score
+from utils.multi_agent import run_multi_agent
+from utils.stock import get_stock_price, get_stock_dividends
+from utils.expense_track import calculate_expense, insights
+from utils.validation import ValidationError, validate_string, validate_float, validate_int, validate_history
+from utils.safety_engine import SafetyEngine
 from utils.rag_system import RAGSystem
 from utils.fx import convert_to_base, get_rate
+from utils.loan_planner import data_input
+
 
 app = Flask(__name__)
 
@@ -609,7 +621,7 @@ def logout():
     logout_user()
     return jsonify({"status": "success"})
 
-@app.route("/")
+@app.route("/", methods=["GET","POST"])
 def home():
     return render_template("dashboard.html", active_page="dashboard")
 
@@ -637,6 +649,33 @@ def networth():
 def budget():
     return render_template("budget.html", active_page="budget")
 
+@app.route("/loan_planner", methods=["GET"])
+def loan():
+    return render_template("loan_planner.html", active_page="loan")
+
+    
+#-----Information Retrieval for Loan_Planner--------
+@app.route("/loan_info", methods=["GET","POST"])
+@login_required
+def get_details():
+    try:
+        data = request.get_json() or {}
+        principal = float(data.get("principal", 0))
+        rate = float(data.get("rate", 0))
+        time_years = float(data.get("time", 0))
+        income = float(data.get("income", 0))
+
+        result = data_input(principal, rate, time_years, income)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    print("Working")
+
+# ---------------- RETIREMENT ----------------
+@app.route('/retirement')
+def retirement():
+    """Retirement & Inflation Simulator Page"""
+    return render_template('retirement.html')
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
 @app.route('/portfolio-optimizer')
@@ -4145,7 +4184,7 @@ def get_achievements():
         
     return jsonify({"achievements": achievements}), 200
 
-@app.route("/dashboard-data")
+@app.route("/dashboard-data",methods=["GET","POST"])
 @login_required
 def dashboard_data():
     """API endpoint to fetch all data needed for populating the dashboard in one call."""
