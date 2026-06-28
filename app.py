@@ -656,10 +656,11 @@ def register():
 def login():
     data = request.json or {}
     username = data.get("username")
-    email = data.get("email")
     password = data.get("password")
-    if not username or not password or not email:
-        return jsonify({"error": "Username, email, and password are required."}), 400
+    # Login authenticates on username + password only; email is not used
+    # here (it is collected at registration), so it is not required.
+    if not username or not password:
+        return jsonify({"error": "Username and password are required."}), 400
 
     # Block accounts that have hit the failed-attempt threshold.
     if _is_locked_out(username):
