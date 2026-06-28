@@ -83,7 +83,7 @@ async function calcLoan(){
     const time_front=document.getElementById("time").value;
     const income_front=document.getElementById("income").value;
     if (!principal_front||!rate_front||!time_front||!income_front) {
-      showResult("⚠ Fill in all fields.");
+      showResult("Msg","⚠ Fill in all fields.");
       return;
     }
     setLoading('Btn', true);
@@ -119,9 +119,9 @@ async function calcLoan(){
     document.getElementById("aiPredictionResult").innerHTML=aiHtml;
 
     document.getElementById("LoanEmicalc").innerHTML = `
-    <p>Amount: ₹${loan_amt}</p>
-    <p>Interest: ₹${loan_int}</p>
-    <p>EMI: ₹${emi}</p>`;
+    <p style="margin: 8px 0;"><strong>Amount: ₹${loan_amt}</strong></p>
+    <p style="margin: 8px 0;"><strong>Interest: ₹${loan_int}</strong></p>
+    <p style="margin: 8px 0;"><strong>EMI: ₹${emi}</strong></p>`;
 
     let bg_color = "";
     let text_color = "";
@@ -142,7 +142,7 @@ async function calcLoan(){
       }
 
     document.getElementById("Reliability").innerHTML = `
-    <p style="margin: 8px 0;"><strong>Take-home:</strong> ₹${net_income}</p>
+    <p style="margin: 8px 0;"><strong>Net Income:</strong> ₹${net_income}</p>
     <p style="margin: 8px 0;"><strong>Ratio:</strong> ${ratio}%</p>
     <p style="margin: 8px 0;">
     <strong>Zone:</strong> 
