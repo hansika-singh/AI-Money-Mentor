@@ -74,10 +74,10 @@
 {% block scripts %}
 <script>
 let loanChart = null;
-
+console.log("Loan Planner Script Loaded successfully!");
   
 async function calcLoan(){
-    
+    console.log("Calculate button clicked!");
     const principal_front=document.getElementById("principal").value;
     const rate_front=document.getElementById("rate").value;
     const time_front=document.getElementById("time").value;
@@ -96,8 +96,8 @@ async function calcLoan(){
         rate: parseFloat(rate_front),
         time: parseFloat(time_front),
         income: parseFloat(income_front)
+      })
       });
-      
       const data = await res.json();
       if (data.error) {
         showResult("Msg",`⚠ ${data.error}`);
@@ -184,6 +184,7 @@ async function calcLoan(){
 });
 } catch (error) {
     console.error("API Error:", error);
+    alert("JS Error caught: " + error.message);
     showResult("Msg", "⚠ Could not connect to server.");
     }
     setLoading('Btn', false);      
