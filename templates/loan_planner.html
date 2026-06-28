@@ -86,7 +86,10 @@ async function calcLoan(){
       showResult("Msg","⚠ Fill in all fields.");
       return;
     }
-  
+    if (parseFloat(principal_front)<0||parseFloat(rate_front)<0||parseFloat(time_front)<0||parseFloat(income_front)<0){
+      showResult("Msg","⚠ Inputs should be greater than zero.");
+      return;
+    }
     setLoading('Btn', true);
     try{
       const res = await fetch('/loan_info', {
