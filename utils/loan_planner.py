@@ -14,7 +14,8 @@ def data_input(principal, rate, time, income):
           "Loan_Interest":loan_calc.get("Interest",0),
           "EMI":emi,
           "Net_take_income":emi_calc.get("Net_take_home",0),
-          "EMI to Income Ratio":check.get("Ratio",0)
+          "EMI to Income Ratio":check.get("Ratio",0),
+          "Zone":check.get("Zone",0)
           }
   advice=financial_advice(metrics)
   print("Working backend")
@@ -46,10 +47,11 @@ def emi_calculation(principal, rate, time, income):
   return {"EMI":emi,"Net_take_home":net}
   
 def financial_check(emi, income):
-  ratio=(emi/income)*100
-  if ratio<30:
+  ratio=(emi/income)
+  percentage=(emi/income)*100
+  if percentage<30:
     zone=1
-  elif ratio <45:
+  elif percentage <45:
     zone=0
   else:
     zone=-1
@@ -64,7 +66,7 @@ def financial_advice(message):
         res = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a loan advisor, based on the info provided, provide the answers to the following questions:Should the user take the loan or not? What should they improve to make the loan suitable for them? All the prices are in rupees. Be precise and accurate."},
+                {"role": "system", "content": "You are a loan advisor, based on the info provided, provide the answers to the following questions:Should the user take the loan or not? What should they improve to make the loan suitable for them? All the prices are in rupees.For zone, 1 is safe, 0 is moderate and -1 is risky. Be precise and accurate."},
                 {"role": "user", "content": f"Here are the financial metrics:{user_prompt_string}"}
             ]
         )
