@@ -43,7 +43,6 @@ from werkzeug.security import (
 from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule
 
 
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry
 
 
 from utils.portfolio_optimizer import PortfolioOptimizer
@@ -822,11 +821,11 @@ from utils.voice_assistant import MultiLanguageVoiceAssistant
 
 document_parser = DocumentParser()
 
-@app.route('/document-parser')
-@login_required
-def document_parser_page():
-    """Document Parser Page"""
-    return render_template('document_parser.html', active_page='document_parser')
+# @app.route('/document-parser')
+# @login_required
+# def document_parser_page():
+#     """Document Parser Page"""
+#     return render_template('document_parser.html', active_page='document_parser')
 
 @app.route('/api/portfolio/stress-test', methods=['POST'])
 @login_required
@@ -883,6 +882,18 @@ def parse_document():
             result = {'success': False, 'error': f'Unsupported file type: {file_ext}'}
         
         # Clean up
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 def transcribe_voice():
     try:
@@ -1026,6 +1037,11 @@ def mfa_totp_setup():
             'qr_code': result['qr_code'],
             'backup_codes': result['backup_codes']
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 def couple_invite():
     try:
@@ -1056,6 +1072,13 @@ def mfa_totp_verify():
             return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
         else:
             return jsonify({'error': 'Invalid code'}), 400
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 def couple_accept():
     try:
@@ -1088,32 +1111,43 @@ def couple_unlink():
 
 @app.route('/api/mfa/webauthn/verify', methods=['POST'])
 @login_required
-
 def mfa_webauthn_verify():
     """Verify WebAuthn registration"""
-
-
-def get_goals():
-
-def get_couple_goals():
-
-    """Get shared goals"""
-
     try:
-
         data = request.json
-        mfa = MFASystem(current_user)
-        
-        if mfa.verify_webauthn(data):
-            return jsonify({'success': True, 'message': 'WebAuthn verified'})
-        else:
-            return jsonify({'error': 'Verification failed'}), 400
 
+        mfa = MFASystem(current_user)
+
+        if mfa.verify_webauthn(data):
+            return jsonify({
+                'success': True,
+                'message': 'WebAuthn verified'
+            })
+        else:
+            return jsonify({
+                'error': 'Verification failed'
+            }), 400
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/couple/goals', methods=['GET'])
+@login_required
+def get_couple_goals():
+    """Get shared goals"""
+    try:
         status = couple_manager.get_couple_status(current_user.id)
+
         if not status.get('has_couple'):
             return jsonify({'error': 'No couple found'}), 400
+
         goals = couple_manager.get_shared_goals(status['couple_id'])
-        return jsonify({'success': True, 'goals': goals})
+
+        return jsonify({
+            'success': True,
+            'goals': goals
+        })
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1126,6 +1160,9 @@ def mfa_get_devices():
         mfa = MFASystem(current_user)
         devices = mfa.get_trusted_devices()
         return jsonify({'success': True, 'devices': devices})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def create_goal():
     try:
@@ -1159,6 +1196,9 @@ def mfa_add_device():
         )
         
         return jsonify({'success': True, 'device': device.to_dict()})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def contribute_goal():
     try:
@@ -1185,6 +1225,10 @@ def mfa_remove_device(device_id):
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Device not found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
+    
 
 def get_split_expenses():
     try:
@@ -1248,251 +1292,251 @@ def document_parser_page():
     """Document Parser Page"""
     return render_template('document_parser.html', active_page='document_parser')
 
-@app.route('/api/parser/parse', methods=['POST'])
-@login_required
-def parse_document():
-    """Parse uploaded document"""
-    try:
-        if 'document' not in request.files:
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
+# @app.route('/api/parser/parse', methods=['POST'])
+# @login_required
+# def parse_document():
+#     """Parse uploaded document"""
+#     try:
+#         if 'document' not in request.files:
+#             return jsonify({'success': False, 'error': 'No file provided'}), 400
         
-        file = request.files['document']
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
+#         file = request.files['document']
+#         if file.filename == '':
+#             return jsonify({'success': False, 'error': 'No file selected'}), 400
         
-        # Save file temporarily
-        import tempfile
-        import os
+#         # Save file temporarily
+#         import tempfile
+#         import os
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
-            file.save(tmp.name)
-            tmp_path = tmp.name
+#         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
+#             file.save(tmp.name)
+#             tmp_path = tmp.name
         
-        file_ext = os.path.splitext(file.filename)[1].lower()
+#         file_ext = os.path.splitext(file.filename)[1].lower()
         
-        # Parse based on file type
-        if file_ext in ['.png', '.jpg', '.jpeg']:
-            result = document_parser.extract_from_image(tmp_path)
-        elif file_ext == '.pdf':
-            result = document_parser.extract_from_pdf(tmp_path)
-        else:
-            result = {'success': False, 'error': f'Unsupported file type: {file_ext}'}
+#         # Parse based on file type
+#         if file_ext in ['.png', '.jpg', '.jpeg']:
+#             result = document_parser.extract_from_image(tmp_path)
+#         elif file_ext == '.pdf':
+#             result = document_parser.extract_from_pdf(tmp_path)
+#         else:
+#             result = {'success': False, 'error': f'Unsupported file type: {file_ext}'}
         
-        # Clean up
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
+#         # Clean up
+#         try:
+#             os.unlink(tmp_path)
+#         except:
+#             pass
         
-        return jsonify(result)
+#         return jsonify(result)
         
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+#     except Exception as e:
+#         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/parser/export', methods=['POST'])
-@login_required
-def export_parsed_expenses():
-    """Export parsed transactions to expense tracker"""
-    try:
-        data = request.json
-        parsed_data = data.get('data', {})
+# @app.route('/api/parser/export', methods=['POST'])
+# @login_required
+# def export_parsed_expenses():
+#     """Export parsed transactions to expense tracker"""
+#     try:
+#         data = request.json
+#         parsed_data = data.get('data', {})
         
-        expenses = document_parser.export_to_expense(parsed_data)
+#         expenses = document_parser.export_to_expense(parsed_data)
         
-        if not expenses:
-            return jsonify({'success': False, 'error': 'No transactions to export'}), 400
+#         if not expenses:
+#             return jsonify({'success': False, 'error': 'No transactions to export'}), 400
         
-        # Save to expense tracker
-        from models import Expense
-        count = 0
-        for exp in expenses:
-            expense = Expense(
-                user_id=current_user.id,
-                category=exp['category'],
-                amount=exp['amount'],
-                date=exp['date'],
-                merchant=exp['merchant'],
-                description=exp.get('description', 'Imported')
-            )
-            db.session.add(expense)
-            count += 1
+#         # Save to expense tracker
+#         from models import Expense
+#         count = 0
+#         for exp in expenses:
+#             expense = Expense(
+#                 user_id=current_user.id,
+#                 category=exp['category'],
+#                 amount=exp['amount'],
+#                 date=exp['date'],
+#                 merchant=exp['merchant'],
+#                 description=exp.get('description', 'Imported')
+#             )
+#             db.session.add(expense)
+#             count += 1
         
-        db.session.commit()
+#         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'count': count,
-            'message': f'Successfully exported {count} transactions'
-        })
+#         return jsonify({
+#             'success': True,
+#             'count': count,
+#             'message': f'Successfully exported {count} transactions'
+#         })
         
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
         # ---------------- MFA SYSTEM ----------------
 from utils.mfa_system import MFASystem
 
-@app.route('/security-settings')
-@login_required
-def security_settings_page():
-    """Security Settings Page"""
-    return render_template('security_settings.html', active_page='security_settings')
+# @app.route('/security-settings')
+# @login_required
+# def security_settings_page():
+#     """Security Settings Page"""
+#     return render_template('security_settings.html', active_page='security_settings')
 
-@app.route('/api/mfa/status', methods=['GET'])
-@login_required
-def mfa_status():
-    """Get MFA status"""
-    try:
-        mfa = MFASystem(current_user)
-        status = mfa.get_mfa_status()
-        return jsonify({'success': True, 'status': status})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/status', methods=['GET'])
+# @login_required
+# def mfa_status():
+#     """Get MFA status"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         status = mfa.get_mfa_status()
+#         return jsonify({'success': True, 'status': status})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/totp/setup', methods=['GET'])
-@login_required
-def mfa_totp_setup():
-    """Setup TOTP"""
-    try:
-        mfa = MFASystem(current_user)
-        result = mfa.setup_totp()
-        return jsonify({
-            'success': True,
-            'secret': result['secret'],
-            'qr_code': result['qr_code'],
-            'backup_codes': result['backup_codes']
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/totp/setup', methods=['GET'])
+# @login_required
+# def mfa_totp_setup():
+#     """Setup TOTP"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         result = mfa.setup_totp()
+#         return jsonify({
+#             'success': True,
+#             'secret': result['secret'],
+#             'qr_code': result['qr_code'],
+#             'backup_codes': result['backup_codes']
+#         })
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/totp/verify', methods=['POST'])
-@login_required
-def mfa_totp_verify():
-    """Verify TOTP code"""
-    try:
-        data = request.json
-        code = data.get('code')
+# @app.route('/api/mfa/totp/verify', methods=['POST'])
+# @login_required
+# def mfa_totp_verify():
+#     """Verify TOTP code"""
+#     try:
+#         data = request.json
+#         code = data.get('code')
         
-        if not code:
-            return jsonify({'error': 'Code is required'}), 400
+#         if not code:
+#             return jsonify({'error': 'Code is required'}), 400
         
-        mfa = MFASystem(current_user)
-        if mfa.verify_totp(code):
-            return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
-        else:
-            return jsonify({'error': 'Invalid code'}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+#         mfa = MFASystem(current_user)
+#         if mfa.verify_totp(code):
+#             return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
+#         else:
+#             return jsonify({'error': 'Invalid code'}), 400
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/webauthn/setup', methods=['GET'])
-@login_required
-def mfa_webauthn_setup():
-    """Setup WebAuthn"""
-    try:
-        mfa = MFASystem(current_user)
-        result = mfa.setup_webauthn()
-        return jsonify({
-            'success': True,
-            'options': result['options']
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/webauthn/setup', methods=['GET'])
+# @login_required
+# def mfa_webauthn_setup():
+#     """Setup WebAuthn"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         result = mfa.setup_webauthn()
+#         return jsonify({
+#             'success': True,
+#             'options': result['options']
+#         })
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/webauthn/verify', methods=['POST'])
-@login_required
-def mfa_webauthn_verify():
-    """Verify WebAuthn registration"""
-    try:
-        data = request.json
-        mfa = MFASystem(current_user)
+# @app.route('/api/mfa/webauthn/verify', methods=['POST'])
+# @login_required
+# def mfa_webauthn_verify():
+#     """Verify WebAuthn registration"""
+#     try:
+#         data = request.json
+#         mfa = MFASystem(current_user)
         
-        if mfa.verify_webauthn(data):
-            return jsonify({'success': True, 'message': 'WebAuthn verified'})
-        else:
-            return jsonify({'error': 'Verification failed'}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+#         if mfa.verify_webauthn(data):
+#             return jsonify({'success': True, 'message': 'WebAuthn verified'})
+#         else:
+#             return jsonify({'error': 'Verification failed'}), 400
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/devices', methods=['GET'])
-@login_required
-def mfa_get_devices():
-    """Get trusted devices"""
-    try:
-        mfa = MFASystem(current_user)
-        devices = mfa.get_trusted_devices()
-        return jsonify({'success': True, 'devices': devices})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/devices', methods=['GET'])
+# @login_required
+# def mfa_get_devices():
+#     """Get trusted devices"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         devices = mfa.get_trusted_devices()
+#         return jsonify({'success': True, 'devices': devices})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/devices/add', methods=['POST'])
-@login_required
-def mfa_add_device():
-    """Add trusted device"""
-    try:
-        data = request.json
-        device_name = data.get('device_name')
+# @app.route('/api/mfa/devices/add', methods=['POST'])
+# @login_required
+# def mfa_add_device():
+#     """Add trusted device"""
+#     try:
+#         data = request.json
+#         device_name = data.get('device_name')
         
-        if not device_name:
-            return jsonify({'error': 'Device name is required'}), 400
+#         if not device_name:
+#             return jsonify({'error': 'Device name is required'}), 400
         
-        mfa = MFASystem(current_user)
-        device = mfa.add_trusted_device(
-            device_name,
-            request.headers.get('User-Agent'),
-            request.remote_addr
-        )
+#         mfa = MFASystem(current_user)
+#         device = mfa.add_trusted_device(
+#             device_name,
+#             request.headers.get('User-Agent'),
+#             request.remote_addr
+#         )
         
-        return jsonify({'success': True, 'device': device.to_dict()})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+#         return jsonify({'success': True, 'device': device.to_dict()})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/devices/remove/<int:device_id>', methods=['DELETE'])
-@login_required
-def mfa_remove_device(device_id):
-    """Remove trusted device"""
-    try:
-        mfa = MFASystem(current_user)
-        if mfa.remove_trusted_device(device_id):
-            return jsonify({'success': True})
-        else:
-            return jsonify({'error': 'Device not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/devices/remove/<int:device_id>', methods=['DELETE'])
+# @login_required
+# def mfa_remove_device(device_id):
+#     """Remove trusted device"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         if mfa.remove_trusted_device(device_id):
+#             return jsonify({'success': True})
+#         else:
+#             return jsonify({'error': 'Device not found'}), 404
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/backup-codes', methods=['POST'])
-@login_required
-def mfa_generate_backup_codes():
-    """Generate backup codes"""
-    try:
-        mfa = MFASystem(current_user)
-        codes = mfa.generate_new_backup_codes()
-        return jsonify({'success': True, 'codes': codes})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/backup-codes', methods=['POST'])
+# @login_required
+# def mfa_generate_backup_codes():
+#     """Generate backup codes"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         codes = mfa.generate_new_backup_codes()
+#         return jsonify({'success': True, 'codes': codes})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/security-events', methods=['GET'])
-@login_required
-def mfa_security_events():
-    """Get security events"""
-    try:
-        mfa = MFASystem(current_user)
-        events = mfa.get_security_events()
-        return jsonify({'success': True, 'events': events})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/security-events', methods=['GET'])
+# @login_required
+# def mfa_security_events():
+#     """Get security events"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         events = mfa.get_security_events()
+#         return jsonify({'success': True, 'events': events})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mfa/disable', methods=['POST'])
-@login_required
-def mfa_disable():
-    """Disable MFA"""
-    try:
-        mfa = MFASystem(current_user)
-        if mfa.disable_mfa():
-            return jsonify({'success': True, 'message': 'MFA disabled'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/mfa/disable', methods=['POST'])
+# @login_required
+# def mfa_disable():
+#     """Disable MFA"""
+#     try:
+#         mfa = MFASystem(current_user)
+#         if mfa.disable_mfa():
+#             return jsonify({'success': True, 'message': 'MFA disabled'})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
    # ---------------- TAX FILING SYSTEM ----------------
 from utils.tax_filing import TaxFilingSystem
@@ -1611,117 +1655,117 @@ def tax_filing_parse_form16():
              
 
 # ---------------- RETIREMENT ----------------
-@app.route('/retirement')
-def retirement():
-    """Retirement & Inflation Simulator Page"""
-    return render_template('retirement.html')
+# @app.route('/retirement')
+# def retirement():
+#     """Retirement & Inflation Simulator Page"""
+#     return render_template('retirement.html')
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
-@app.route('/portfolio-optimizer')
-@login_required
-def portfolio_optimizer_page():
-    """Portfolio Optimizer Page"""
-    return render_template('portfolio_optimizer.html', active_page='portfolio_optimizer')
+# @app.route('/portfolio-optimizer')
+# @login_required
+# def portfolio_optimizer_page():
+#     """Portfolio Optimizer Page"""
+#     return render_template('portfolio_optimizer.html', active_page='portfolio_optimizer')
 
-@app.route('/api/portfolio/analyze', methods=['POST'])
-@login_required
-def analyze_portfolio():
-    try:
-        data = request.json
-        holdings = data.get('holdings', [])
-        if not holdings:
-            return jsonify({'error': 'No holdings provided'}), 400
-        optimizer = PortfolioOptimizer(holdings)
-        optimizer.fetch_historical_data()
-        summary = optimizer.get_portfolio_summary()
-        frontier = optimizer.calculate_efficient_frontier()
-        rebalancing = optimizer.get_rebalancing_suggestions()
-        correlation = optimizer.calculate_correlation_matrix()
-        return jsonify({
-            'success': True,
-            'summary': summary,
-            'efficient_frontier': frontier['frontier'],
-            'max_sharpe': {
-                'return': frontier['max_sharpe']['expected_return'] * 100,
-                'volatility': frontier['max_sharpe']['volatility'] * 100,
-                'sharpe': frontier['max_sharpe']['sharpe_ratio']
-            },
-            'rebalancing': rebalancing,
-            'correlation_matrix': correlation.to_dict(),
-            'symbols': optimizer.symbols
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/portfolio/analyze', methods=['POST'])
+# @login_required
+# def analyze_portfolio():
+#     try:
+#         data = request.json
+#         holdings = data.get('holdings', [])
+#         if not holdings:
+#             return jsonify({'error': 'No holdings provided'}), 400
+#         optimizer = PortfolioOptimizer(holdings)
+#         optimizer.fetch_historical_data()
+#         summary = optimizer.get_portfolio_summary()
+#         frontier = optimizer.calculate_efficient_frontier()
+#         rebalancing = optimizer.get_rebalancing_suggestions()
+#         correlation = optimizer.calculate_correlation_matrix()
+#         return jsonify({
+#             'success': True,
+#             'summary': summary,
+#             'efficient_frontier': frontier['frontier'],
+#             'max_sharpe': {
+#                 'return': frontier['max_sharpe']['expected_return'] * 100,
+#                 'volatility': frontier['max_sharpe']['volatility'] * 100,
+#                 'sharpe': frontier['max_sharpe']['sharpe_ratio']
+#             },
+#             'rebalancing': rebalancing,
+#             'correlation_matrix': correlation.to_dict(),
+#             'symbols': optimizer.symbols
+#         })
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/portfolio/stress-test', methods=['POST'])
-@login_required
-def stress_test_portfolio():
-    try:
-        data = request.json
-        holdings = data.get('holdings', [])
-        scenario = data.get('scenario', 'mild_crash')
-        if not holdings:
-            return jsonify({'error': 'No holdings provided'}), 400
-        optimizer = PortfolioOptimizer(holdings)
-        optimizer.fetch_historical_data()
-        result = optimizer.stress_test(scenario)
-        return jsonify({'success': True, 'stress_test': result})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/portfolio/stress-test', methods=['POST'])
+# @login_required
+# def stress_test_portfolio():
+#     try:
+#         data = request.json
+#         holdings = data.get('holdings', [])
+#         scenario = data.get('scenario', 'mild_crash')
+#         if not holdings:
+#             return jsonify({'error': 'No holdings provided'}), 400
+#         optimizer = PortfolioOptimizer(holdings)
+#         optimizer.fetch_historical_data()
+#         result = optimizer.stress_test(scenario)
+#         return jsonify({'success': True, 'stress_test': result})
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
 # ---------------- MULTI-LANGUAGE VOICE ASSISTANT ----------------
-@app.route('/voice-assistant')
-@login_required
-def voice_assistant_page():
-    return render_template('voice_assistant.html', active_page='voice_assistant')
+# @app.route('/voice-assistant')
+# @login_required
+# def voice_assistant_page():
+#     return render_template('voice_assistant.html', active_page='voice_assistant')
 
-@app.route('/api/voice/transcribe', methods=['POST'])
-@login_required
-def transcribe_voice():
-    try:
-        if 'audio' not in request.files:
-            return jsonify({'error': 'No audio file provided'}), 400
-        audio_file = request.files['audio']
-        if audio_file.filename == '':
-            return jsonify({'error': 'No audio file selected'}), 400
-        import tempfile
-        import os
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
-            audio_file.save(tmp.name)
-            tmp_path = tmp.name
-        result = voice_assistant.transcribe_voice(tmp_path)
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
-        if result['success']:
-            parsed = voice_assistant.parse_command(result['text'], result['language'])
-            result['parsed'] = parsed
-            execution = voice_assistant.execute_command(parsed)
-            result['execution'] = execution
-            audio_response = voice_assistant.synthesize_voice(
-                execution.get('response', ''),
-                result['language']
-            )
-            result['audio_response'] = audio_response
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/voice/transcribe', methods=['POST'])
+# @login_required
+# def transcribe_voice():
+#     try:
+#         if 'audio' not in request.files:
+#             return jsonify({'error': 'No audio file provided'}), 400
+#         audio_file = request.files['audio']
+#         if audio_file.filename == '':
+#             return jsonify({'error': 'No audio file selected'}), 400
+#         import tempfile
+#         import os
+#         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
+#             audio_file.save(tmp.name)
+#             tmp_path = tmp.name
+#         result = voice_assistant.transcribe_voice(tmp_path)
+#         try:
+#             os.unlink(tmp_path)
+#         except:
+#             pass
+#         if result['success']:
+#             parsed = voice_assistant.parse_command(result['text'], result['language'])
+#             result['parsed'] = parsed
+#             execution = voice_assistant.execute_command(parsed)
+#             result['execution'] = execution
+#             audio_response = voice_assistant.synthesize_voice(
+#                 execution.get('response', ''),
+#                 result['language']
+#             )
+#             result['audio_response'] = audio_response
+#         return jsonify(result)
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/voice/test', methods=['GET'])
-@login_required
-def voice_test():
-    return jsonify({
-        'status': 'ok',
-        'languages': voice_assistant.languages,
-        'sample_commands': [
-            'Transfer 500 to savings',
-            'What is my balance?',
-            'Show my spending this month',
-            'Add expense 200 for food',
-            'What is my net worth?'
-        ]
-    })
+# @app.route('/api/voice/test', methods=['GET'])
+# @login_required
+# def voice_test():
+#     return jsonify({
+#         'status': 'ok',
+#         'languages': voice_assistant.languages,
+#         'sample_commands': [
+#             'Transfer 500 to savings',
+#             'What is my balance?',
+#             'Show my spending this month',
+#             'Add expense 200 for food',
+#             'What is my net worth?'
+#         ]
+#     })
 
 
 
@@ -1849,9 +1893,6 @@ def get_split_expenses():
 
 @app.route('/api/couple/expenses', methods=['POST'])
 @login_required
-def create_split_expense():
-    try:
-
 def create_split_expense():
     try:
 
@@ -2114,16 +2155,26 @@ def predictive_alerts_page():
 @login_required
 def train_predictor():
     try:
-
-def train_predictor():
-    try:
-
         expenses = Expense.query.filter_by(user_id=current_user.id).all()
-        transactions = [{'date': e.date, 'amount': e.amount, 'category': e.category} for e in expenses]
+
+        transactions = [
+            {
+                'date': e.date,
+                'amount': e.amount,
+                'category': e.category
+            }
+            for e in expenses
+        ]
+
         if len(transactions) < 30:
-            return jsonify({'success': False, 'error': f'Need at least 30 transactions. You have {len(transactions)}.'})
+            return jsonify({
+                'success': False,
+                'error': f'Need at least 30 transactions. You have {len(transactions)}.'
+            })
+
         result = predictor.train_models(transactions)
         return jsonify(result)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2413,31 +2464,21 @@ def fire_quick():
         return jsonify({'error': str(e)}), 500
 
 
-
-
-        return jsonify({'error': str(e)}), 500
-
-        return jsonify({'error': str(e)}), 500 
-
-
-      ]
-
-
         # ---------------- SCENARIO PLANNER ----------------
-        @app.route('/scenarios')
-        @login_required
-        def scenarios_page():
-            return render_template('scenarios.html', active_page='scenarios')
+@app.route('/scenarios')
+@login_required
+def scenarios_page():
+    return render_template('scenarios.html', active_page='scenarios')
 
-        @app.route('/api/scenario/base', methods=['GET'])
-        @login_required
-        def get_base_snapshot():
-            snapshot = get_user_snapshot(current_user.id)
-            return jsonify({'success': True, 'snapshot': snapshot})
+@app.route('/api/scenario/base', methods=['GET'])
+@login_required
+def get_base_snapshot():
+    snapshot = get_user_snapshot(current_user.id)
+    return jsonify({'success': True, 'snapshot': snapshot})
 
-        @app.route('/api/scenario/job_change', methods=['POST'])
-        @login_required
-        def scenario_job_change():
+@app.route('/api/scenario/job_change', methods=['POST'])
+@login_required
+def scenario_job_change():
             data = request.json
             percent = data.get('salary_delta', 0)
             snapshot = get_user_snapshot(current_user.id)
@@ -2445,27 +2486,27 @@ def fire_quick():
             projection = project_snapshot(updated)
             return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
 
-        @app.route('/api/scenario/new_loan', methods=['POST'])
-        @login_required
-        def scenario_new_loan():
-            data = request.json
-            amount = float(data.get('amount', 0))
-            interest = float(data.get('interest', 0.07))
-            tenure = int(data.get('tenure_years', 15))
-            snapshot = get_user_snapshot(current_user.id)
-            updated = new_loan(snapshot, amount, interest, tenure)
-            projection = project_snapshot(updated)
-            return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
+@app.route('/api/scenario/new_loan', methods=['POST'])
+@login_required
+def scenario_new_loan():
+        data = request.json
+        amount = float(data.get('amount', 0))
+        interest = float(data.get('interest', 0.07))
+        tenure = int(data.get('tenure_years', 15))
+        snapshot = get_user_snapshot(current_user.id)
+        updated = new_loan(snapshot, amount, interest, tenure)
+        projection = project_snapshot(updated)
+        return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
 
-        @app.route('/api/scenario/add_child', methods=['POST'])
-        @login_required
-        def scenario_add_child():
-            data = request.json
-            annual_cost = float(data.get('annual_cost', 0))
-            snapshot = get_user_snapshot(current_user.id)
-            updated = add_child(snapshot, annual_cost)
-            projection = project_snapshot(updated)
-            return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
+@app.route('/api/scenario/add_child', methods=['POST'])
+@login_required
+def scenario_add_child():
+        data = request.json
+        annual_cost = float(data.get('annual_cost', 0))
+        snapshot = get_user_snapshot(current_user.id)
+        updated = add_child(snapshot, annual_cost)
+        projection = project_snapshot(updated)
+        return jsonify({'success': True, 'snapshot': updated, 'projection': projection})
 
         # ---------------- BANK INTEGRATION ----------------
 from utils.bank_integration import BankIntegration
@@ -2557,17 +2598,6 @@ def get_sync_status():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-        return jsonify({'error': str(e)}), 500  
-
-
-    })    
-
-    return jsonify({'error': str(e)}), 500  
-
-
-  ]
 
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
@@ -2863,17 +2893,6 @@ def get_sync_status():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-        return jsonify({'error': str(e)}), 500  
-
-
-    })    
-
-    return jsonify({'error': str(e)}), 500  
-
-
-  ]
 
 
 # ---------------- PORTFOLIO OPTIMIZER ----------------
@@ -4860,9 +4879,7 @@ def tax():
                 f"  \"recommendations\": [\"string\"]\n"
                 f"}}\n"
 
-            )            try:
-
-            )
+            )          
 
             try:
 
@@ -5274,9 +5291,6 @@ def expense_detail(expense_id):
 @login_required
 def calculate():
 
-    try:
-        expense_rows = Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id.desc()).all()
-
     """
     GET /calculate
     Returns total, average, by-category breakdown, and full expense list
@@ -5310,11 +5324,6 @@ def calculate():
 @login_required
 def expense_insights():
 
-    try:
-        expense_rows = Expense.query.filter_by(user_id=current_user.id).order_by(Expense.id.desc()).all()
-        expense_data = [e.to_dict() for e in expense_rows]
-        result = insights(client, expense_data)
-
     """
     GET /insights
     Returns AI-generated HTML insight cards for the current user's expenses.
@@ -5334,6 +5343,7 @@ def expense_insights():
                 "category": e.category,
                 "amount": converted_amount
             })
+
  
         # client is None when GROQ_API_KEY is missing —
         # insights() handles this and returns an offline message
@@ -5341,8 +5351,6 @@ def expense_insights():
 
 
         return jsonify(result)
-
-     return jsonify(result)
 
     except Exception as e:
         app.logger.error(f"[expense_insights] {e}")
@@ -5569,6 +5577,9 @@ def parse_expense_text():
         text = data.get('text', '').strip()
         if not text:
             return jsonify({'success': False, 'error': 'No text provided'}), 400
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------- VOICE EXPENSE PARSER ----------------
@@ -5649,15 +5660,6 @@ def parse_expense_text():
         except Exception as e:
             print(f"JSON parse error: {e}")
             return jsonify({'success': False, 'error': 'Failed to parse AI response'}), 500
-
-                
-                valid_categories = ['Food', 'Rent', 'Travel', 'Shopping', 'Utilities', 'Entertainment', 'Healthcare', 'Other']
-                if result['category'] and result['category'] not in valid_categories:
-                    result['category'] = 'Other'
-                
-                return jsonify(result)
-            else:
-                raise ValueError("No JSON found in response")
                 
         except Exception as e:
             print(f"JSON parse error: {e}")
@@ -6808,9 +6810,6 @@ def create_alert():
     except Exception as e:
 
         return jsonify({"error": str(e)}), 400
-
-\\
-        return jsonify({'error': str(e)}), 400
         
 
 # ---------------- PORTFOLIO TRACKER ----------------
@@ -6832,6 +6831,9 @@ def alerts_reset():
             PriceAlertEvent.query.filter(PriceAlertEvent.alert_id.in_(user_alert_ids)).delete(synchronize_session=False)
         db.session.commit()
         return jsonify({"status": "success"})
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/alerts/history", methods=["GET"])
 @login_required
@@ -6960,6 +6962,9 @@ def delete_alert(alert_id):
         if not alert:
             return jsonify({"error": "Alert not found"}), 404
         db.session.delete(alert)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/alerts/reset", methods=["POST"])
 @login_required

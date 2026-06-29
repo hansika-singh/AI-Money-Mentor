@@ -176,39 +176,34 @@ class PriceAlertEvent(db.Model):
 
 
 class Expense(db.Model):
-
-# New model for shared subscriptions between couple users
-class CoupleSubscription(db.Model):
-    __tablename__ = 'couple_subscriptions'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Owner
-    partner_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Partner
-    title = db.Column(db.String(100), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    frequency = db.Column(db.String(20), nullable=False)  # monthly, yearly, etc.
-    next_due_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), default='active')  # active, canceled
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # Relationships
-    user = db.relationship('User', foreign_keys=[user_id])
-    partner = db.relationship('User', foreign_keys=[partner_user_id])
     __tablename__ = "expenses"
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    user = db.relationship("User", backref="expenses")
+
     id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=False
+    )
+    user = db.relationship(
+        "User",
+        backref=db.backref("expenses", lazy=True)
+    )
     category = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.String(40), nullable=False)
-    
-    # New AI fields
+
+    # AI fields
     ai_confidence = db.Column(db.Float, default=0.0)
     user_corrected = db.Column(db.Boolean, default=False)
     original_ai_category = db.Column(db.String(120), nullable=True)
+
     is_subscription = db.Column(db.Boolean, default=False)
     is_recurring = db.Column(db.Boolean, default=False)
     is_anomaly = db.Column(db.Boolean, default=False)
+
     merchant_name = db.Column(db.String(200), nullable=True)
-    currency = db.Column(db.String(10), default='INR', nullable=False)
+    currency = db.Column(db.String(10), default="INR", nullable=False)
 
     def to_dict(self):
         return {
@@ -225,6 +220,23 @@ class CoupleSubscription(db.Model):
             "user_id": self.user_id
         }
 
+# New model for shared subscriptions between couple users
+class CoupleSubscription(db.Model):
+    __tablename__ = "couple_subscriptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    partner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    title = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    frequency = db.Column(db.String(20), nullable=False)
+    next_due_date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default="active")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", foreign_keys=[user_id])
+    partner = db.relationship("User", foreign_keys=[partner_user_id])
 
 class Asset(db.Model):
     __tablename__ = "assets"
@@ -811,220 +823,6 @@ class CoupleAlert(db.Model):
 # COUPLE FINANCE MODELS
 # ============================================
 
-class Couple(db.Model):
-    """Couple Relationship Model"""
-    __tablename__ = 'couples'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    user2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    status = db.Column(db.String(20), default='PENDING')  # PENDING, ACTIVE, DECLINED, UNLINKED
-    invitation_token = db.Column(db.String(100), unique=True, nullable=True)
-    invitation_expires = db.Column(db.DateTime, nullable=True)
-    linked_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    user1 = db.relationship("User", foreign_keys=[user1_id], backref="couple_user1")
-    user2 = db.relationship("User", foreign_keys=[user2_id], backref="couple_user2")
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user1_id': self.user1_id,
-            'user2_id': self.user2_id,
-            'status': self.status,
-            'linked_at': self.linked_at.isoformat() if self.linked_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-
-class SharedGoal(db.Model):
-    """Shared Goals for Couples"""
-    __tablename__ = 'shared_goals'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    target_amount = db.Column(db.Numeric(15, 2), nullable=False)
-    current_amount = db.Column(db.Numeric(15, 2), default=0.00)
-    deadline = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(20), default='ACTIVE')  # ACTIVE, COMPLETED, CANCELLED
-    priority = db.Column(db.String(20), default='MEDIUM')  # LOW, MEDIUM, HIGH
-    icon = db.Column(db.String(50), default='🎯')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    
-    # Relationships
-    couple = db.relationship("Couple", backref="shared_goals")
-    contributions = db.relationship("GoalContribution", backref="goal", lazy=True, cascade='all, delete-orphan')
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'couple_id': self.couple_id,
-            'name': self.name,
-            'description': self.description,
-            'target_amount': float(self.target_amount),
-            'current_amount': float(self.current_amount),
-            'progress': round(float(self.current_amount) / float(self.target_amount) * 100, 2) if float(self.target_amount) > 0 else 0,
-            'deadline': self.deadline.isoformat() if self.deadline else None,
-            'status': self.status,
-            'priority': self.priority,
-            'icon': self.icon,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'contributions': [c.to_dict() for c in self.contributions]
-        }
-
-
-class GoalContribution(db.Model):
-    """Individual Contributions to Shared Goals"""
-    __tablename__ = 'goal_contributions'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    goal_id = db.Column(db.Integer, db.ForeignKey('shared_goals.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    amount = db.Column(db.Numeric(15, 2), nullable=False)
-    note = db.Column(db.String(200))
-    contributed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    user = db.relationship("User", backref="goal_contributions")
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'goal_id': self.goal_id,
-            'user_id': self.user_id,
-            'amount': float(self.amount),
-            'note': self.note,
-            'contributed_at': self.contributed_at.isoformat() if self.contributed_at else None
-        }
-
-
-class SplitExpense(db.Model):
-    """Split Expenses for Couples"""
-    __tablename__ = 'split_expenses'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
-    total_amount = db.Column(db.Numeric(15, 2), nullable=False)
-    description = db.Column(db.String(200), nullable=False)
-    category = db.Column(db.String(50), default='Other')
-    payer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    split_type = db.Column(db.String(20), default='EQUAL')  # EQUAL, PERCENTAGE, CUSTOM
-    user1_share = db.Column(db.Numeric(15, 2), nullable=True)
-    user2_share = db.Column(db.Numeric(15, 2), nullable=True)
-    settled = db.Column(db.Boolean, default=False)
-    expense_date = db.Column(db.Date, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    settled_at = db.Column(db.DateTime, nullable=True)
-    
-    # Relationships
-    couple = db.relationship("Couple", backref="split_expenses")
-    payer = db.relationship("User", backref="paid_expenses")
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'couple_id': self.couple_id,
-            'total_amount': float(self.total_amount),
-            'description': self.description,
-            'category': self.category,
-            'payer_id': self.payer_id,
-            'split_type': self.split_type,
-            'user1_share': float(self.user1_share) if self.user1_share else None,
-            'user2_share': float(self.user2_share) if self.user2_share else None,
-            'settled': self.settled,
-            'expense_date': self.expense_date.isoformat() if self.expense_date else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'settled_at': self.settled_at.isoformat() if self.settled_at else None
-        }
-
-
-class CoupleBudget(db.Model):
-    """Joint Budget for Couples"""
-    __tablename__ = 'couple_budgets'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
-    category = db.Column(db.String(50), nullable=False)
-    combined_limit = db.Column(db.Numeric(15, 2), nullable=False)
-    month = db.Column(db.String(7), nullable=False)  # YYYY-MM
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    couple = db.relationship("Couple", backref="budgets")
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'couple_id': self.couple_id,
-            'category': self.category,
-            'combined_limit': float(self.combined_limit),
-            'month': self.month,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-
-class CoupleTaxPlan(db.Model):
-    """Tax Optimization for Couples"""
-    __tablename__ = 'couple_tax_plans'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
-    user1_income = db.Column(db.Numeric(15, 2), nullable=False)
-    user2_income = db.Column(db.Numeric(15, 2), nullable=False)
-    regime = db.Column(db.String(20), default='NEW')  # NEW, OLD
-    total_tax = db.Column(db.Numeric(15, 2), nullable=True)
-    total_savings = db.Column(db.Numeric(15, 2), nullable=True)
-    suggestions = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'couple_id': self.couple_id,
-            'user1_income': float(self.user1_income),
-            'user2_income': float(self.user2_income),
-            'regime': self.regime,
-            'total_tax': float(self.total_tax) if self.total_tax else None,
-            'total_savings': float(self.total_savings) if self.total_savings else None,
-            'suggestions': self.suggestions,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-
-class CoupleAlert(db.Model):
-    """Alerts for Couple Activities"""
-    __tablename__ = 'couple_alerts'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    couple_id = db.Column(db.Integer, db.ForeignKey('couples.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    type = db.Column(db.String(50), nullable=False)  # INVITATION, GOAL, EXPENSE, BUDGET
-    message = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    couple = db.relationship("Couple", backref="alerts")
-    user = db.relationship("User", backref="couple_alerts")
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'couple_id': self.couple_id,
-            'type': self.type,
-            'message': self.message,
-            'is_read': self.is_read,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-
-        }
 
 
    # ============================================
@@ -1205,26 +1003,6 @@ class GoalAllocation(db.Model):
         }
 
 
-class GoalContribution(db.Model):
-    """Contributions to Goals"""
-    __tablename__ = 'goal_contributions'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    goal_id = db.Column(db.Integer, db.ForeignKey('investment_goals.id'), nullable=False)
-    amount = db.Column(db.Numeric(15, 2), nullable=False)
-    source = db.Column(db.String(50), default='manual')  # manual, auto, sip
-    note = db.Column(db.String(200))
-    contributed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'goal_id': self.goal_id,
-            'amount': float(self.amount),
-            'source': self.source,
-            'note': self.note,
-            'contributed_at': self.contributed_at.isoformat() if self.contributed_at else None
-        }
 
 
 class GoalRecommendation(db.Model):
@@ -1408,9 +1186,6 @@ class SecurityEvent(db.Model):
         }
 
 
-        }     
-
-
 
 
 class MilestoneNotification(db.Model):
@@ -1473,7 +1248,6 @@ class SipSchedule(db.Model):
 
 
 
-        }
 
 
 
