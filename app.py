@@ -855,24 +855,25 @@ def voice_assistant_page():
 
 def parse_document():
     """Parse uploaded document"""
+    import tempfile
+    import os
+
+    tmp_path = None
     try:
         if 'document' not in request.files:
             return jsonify({'success': False, 'error': 'No file provided'}), 400
-        
+
         file = request.files['document']
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
-        
+
         # Save file temporarily
-        import tempfile
-        import os
-        
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
-        
+
         file_ext = os.path.splitext(file.filename)[1].lower()
-        
+
         # Parse based on file type
         if file_ext in ['.png', '.jpg', '.jpeg']:
             result = document_parser.extract_from_image(tmp_path)
@@ -880,12 +881,6 @@ def parse_document():
             result = document_parser.extract_from_pdf(tmp_path)
         else:
             result = {'success': False, 'error': f'Unsupported file type: {file_ext}'}
-        
-        # Clean up
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
 
         return jsonify(result)
 
@@ -894,6 +889,13 @@ def parse_document():
             'success': False,
             'error': str(e)
         }), 500
+    finally:
+        # Clean up temp file — always runs, even on early returns or exceptions
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 def transcribe_voice():
     try:
