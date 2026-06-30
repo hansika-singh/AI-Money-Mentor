@@ -4,31 +4,6 @@ from unittest.mock import patch
 from app import app, db, check_stock_alerts_job
 from models import PriceAlert, PriceAlertEvent
 
-@pytest.fixture
-def client():
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    
-    with app.test_client() as client:
-        with app.app_context():
-            db.create_all()
-            from models import User
-            user = User.query.filter_by(email="test@example.com").first()
-            if not user:
-                user = User(username="testuser", email="test@example.com", password_hash="pbkdf2:sha256:260000$test")
-                db.session.add(user)
-                db.session.commit()
-            user_id = user.id
-            
-        with client.session_transaction() as sess:
-            sess['_user_id'] = str(user_id)
-            sess['_fresh'] = True
-            
-        yield client
-        
-        with app.app_context():
-            db.drop_all()
-
 def test_create_and_get_price_alerts(client):
     # 1. Create alert
     res = client.post("/api/alerts", json={
