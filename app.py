@@ -40,7 +40,7 @@ from werkzeug.security import (
 )
 
 
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule, CryptoHolding
 
 
 
@@ -3767,6 +3767,177 @@ def delete_portfolio_holding(item_id):
         db.session.delete(holding)
         db.session.commit()
         return jsonify({"success": True, "message": "Successfully deleted holding"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+
+# ---------------- CRYPTO & DEFI DASHBOARD ----------------
+from utils.crypto_tracker import get_crypto_price_multi, get_mock_defi_portfolio
+
+@app.route("/crypto-page")
+@login_required
+def crypto_page():
+    return render_template("crypto.html", active_page="crypto")
+
+@app.route("/api/crypto/list", methods=["GET"])
+@login_required
+def list_crypto():
+    try:
+        holdings = CryptoHolding.query.filter_by(user_id=current_user.id).all()
+        
+        # Get unique symbols
+        symbols = list(set(h.symbol.upper() for h in holdings))
+        
+        # Fetch current prices
+        prices = get_crypto_price_multi(symbols)
+        
+        holdings_list = []
+        total_invested_usd = 0.0
+        total_current_usd = 0.0
+        
+        for h in holdings:
+            symbol = h.symbol.upper()
+            price_info = prices.get(symbol, {"USD": h.buy_price, "INR": h.buy_price})
+            
+            # Use USD as standard for crypto
+            current_price = price_info.get("USD", h.buy_price)
+            if h.currency == 'INR':
+                current_price = price_info.get("INR", h.buy_price)
+            
+            invested_val = h.quantity * h.buy_price
+            current_val = h.quantity * current_price
+            pnl = current_val - invested_val
+            pnl_percent = (pnl / invested_val * 100) if invested_val > 0 else 0.0
+            
+            holdings_list.append({
+                "id": h.id,
+                "symbol": symbol,
+                "name": h.name,
+                "quantity": h.quantity,
+                "buy_price": h.buy_price,
+                "current_price": current_price,
+                "currency": h.currency,
+                "invested_value": round(invested_val, 2),
+                "current_value": round(current_val, 2),
+                "pnl": round(pnl, 2),
+                "pnl_percent": round(pnl_percent, 2),
+                "buy_date": h.buy_date,
+                "notes": h.notes,
+                "wallet_address": h.wallet_address
+            })
+            
+            # Accumulate totals
+            if h.currency == 'INR':
+                usd_invested = invested_val / 83.0
+                usd_current = current_val / 83.0
+            else:
+                usd_invested = invested_val
+                usd_current = current_val
+                
+            total_invested_usd += usd_invested
+            total_current_usd += usd_current
+            
+        total_pnl_usd = total_current_usd - total_invested_usd
+        total_pnl_percent = (total_pnl_usd / total_invested_usd * 100) if total_invested_usd > 0 else 0.0
+        
+        summary = {
+            "total_invested_usd": round(total_invested_usd, 2),
+            "total_current_usd": round(total_current_usd, 2),
+            "total_pnl_usd": round(total_pnl_usd, 2),
+            "total_pnl_percent": round(total_pnl_percent, 2)
+        }
+        
+        return jsonify({
+            "success": True,
+            "holdings": holdings_list,
+            "summary": summary
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/crypto/add", methods=["POST"])
+@login_required
+def add_crypto_holding():
+    try:
+        data = request.json or {}
+        if not isinstance(data, dict):
+            raise ValidationError("Request body must be a JSON object")
+            
+        symbol = validate_string(data.get("symbol"), "symbol").strip().upper()
+        if not symbol or not re.match(r"^[A-Z0-9]+$", symbol):
+            raise ValidationError("Invalid symbol format (alphanumeric only)")
+            
+        name = validate_string(data.get("name"), "name").strip()
+        quantity = validate_float(data.get("quantity"), "quantity", min_val=0.00000001)
+        buy_price = validate_float(data.get("buy_price"), "buy_price", min_val=0.00000001)
+        buy_date = validate_string(data.get("buy_date"), "buy_date")
+        
+        try:
+            datetime.strptime(buy_date, "%Y-%m-%d")
+        except ValueError:
+            raise ValidationError("buy_date must be in YYYY-MM-DD format")
+            
+        notes = data.get("notes", "")
+        if notes:
+            notes = validate_string(notes, "notes")
+            
+        wallet_address = data.get("wallet_address", "")
+        if wallet_address:
+            wallet_address = validate_string(wallet_address, "wallet_address").strip()
+            
+        currency = data.get("currency", "USD").strip().upper()
+        if currency not in ("USD", "INR"):
+            currency = "USD"
+            
+        holding = CryptoHolding(
+            user_id=current_user.id,
+            symbol=symbol,
+            name=name,
+            quantity=quantity,
+            buy_price=buy_price,
+            buy_date=buy_date,
+            notes=notes,
+            wallet_address=wallet_address,
+            currency=currency
+        )
+        db.session.add(holding)
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Successfully added {symbol} holding"})
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/crypto/delete/<int:item_id>", methods=["DELETE"])
+@login_required
+def delete_crypto_holding(item_id):
+    try:
+        holding = db.session.get(CryptoHolding, item_id)
+        if not holding or holding.user_id != current_user.id:
+            return jsonify({"error": "Holding not found or unauthorized"}), 404
+        db.session.delete(holding)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Successfully deleted holding"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/crypto/wallet", methods=["POST"])
+@login_required
+def connect_crypto_wallet():
+    try:
+        data = request.json or {}
+        wallet_address = validate_string(data.get("wallet_address"), "wallet_address").strip()
+        if not wallet_address:
+            raise ValidationError("Wallet address cannot be empty")
+            
+        result = get_mock_defi_portfolio(wallet_address)
+        return jsonify({
+            "success": True,
+            "portfolio": result
+        })
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
