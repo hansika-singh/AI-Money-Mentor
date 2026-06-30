@@ -9,7 +9,8 @@ import yfinance as yf
 import os
 import sys
 import csv
-import io
+import logging
+from functools import wraps
 from groq import Groq
 from fpdf import FPDF
 from dotenv import load_dotenv
@@ -28,16 +29,8 @@ from werkzeug.security import (
     generate_password_hash,
     check_password_hash
 )
-
-
 from flask_mail import Mail, Message
-
-
-
-from werkzeug.security import (
-    generate_password_hash,
-    check_password_hash
-)
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 
 from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule
@@ -47,10 +40,9 @@ from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, Pric
 
 from utils.portfolio_optimizer import PortfolioOptimizer
 
-from flask_mail import Mail, Message
-from flask_socketio import SocketIO, emit, join_room, leave_room
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-# Load environment variables from .env file (if present)
 load_dotenv()
 
 # ---------------- INIT APP ----------------
@@ -72,9 +64,22 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
+# ---- Request validation helpers ----
+def require_json(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.content_type and "application/json" in request.content_type:
+            return f(*args, **kwargs)
+        data = request.get_json(silent=True)
+        if data is None:
+            return jsonify({"error": "Bad Request", "message": "Request must contain valid JSON.", "status_code": 400}), 400
+        return f(*args, **kwargs)
+    return decorated
+
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
+    logger.warning("429 Rate limit hit by %s", get_remote_address())
     return jsonify({
         "error": "Too many requests. Please slow down and try again later."
     }), 429
@@ -4413,24 +4418,38 @@ def ai_status():
 # ---------------- ERROR HANDLERS ----------------
 @app.errorhandler(ValidationError)
 def handle_validation_error(error):
+    logger.warning("ValidationError: %s", error)
     return jsonify({"error": "Bad Request", "message": str(error), "status_code": 400}), 400
 
 @app.errorhandler(400)
 def bad_request(error):
-    return jsonify({"error": "Bad Request", "message": str(error), "status_code": 400}), 400
+    logger.warning("400 Bad Request: %s", error)
+    return jsonify({"error": "Bad Request", "message": "The request could not be understood.", "status_code": 400}), 400
+
+@app.errorhandler(403)
+def forbidden(error):
+    logger.warning("403 Forbidden: %s", error)
+    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+        return render_template("403.html", active_page=None), 403
+    return jsonify({"error": "Forbidden", "message": "You do not have permission to access this resource.", "status_code": 403}), 403
 
 @app.errorhandler(404)
 def not_found(error):
+    logger.info("404 Not Found: %s %s", request.method, request.path)
     if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
         return render_template("404.html", active_page=None), 404
     return jsonify({"error": "Not Found", "message": "The requested endpoint does not exist.", "status_code": 404}), 404
 
 @app.errorhandler(405)
 def method_not_allowed(error):
+    logger.warning("405 Method Not Allowed: %s %s", request.method, request.path)
     return jsonify({"error": "Method Not Allowed", "message": str(error), "status_code": 405}), 405
 
 @app.errorhandler(500)
 def internal_server_error(error):
+    logger.exception("500 Internal Server Error at %s %s", request.method, request.path)
+    if request.accept_mimetypes.accept_html and not request.accept_mimetypes.accept_json:
+        return render_template("500.html", active_page=None), 500
     return jsonify({"error": "Internal Server Error", "message": "An unexpected error occurred. Please try again later.", "status_code": 500}), 500
 
 
