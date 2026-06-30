@@ -1,0 +1,25 @@
+name: "Welcome New Contributors"
+on:
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check if first-time contributor
+        uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-message: |
+            Thanks for opening your first pull request! We appreciate your contribution.
+            A maintainer will review it shortly. In the meantime, please ensure:
+            - All tests pass (`pytest tests/ -v`)
+            - Your branch targets `main`
+            - The commit message follows Conventional Commits
+          issue-message: |
+            Thanks for opening your first issue! Please provide as much detail as possible,
+            including steps to reproduce if this is a bug report.

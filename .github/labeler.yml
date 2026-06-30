@@ -1,26 +1,40 @@
-# Areas
-frontend:
+# Labels based on changed file paths
+"app":
   - changed-files:
-      - any-glob-to-any-file:
-          - 'templates/**'
-          - 'static/**'
+      - any-glob-to-any-file: app.py
 
-backend:
+"agents":
   - changed-files:
-      - any-glob-to-any-file:
-          - 'utils/**'
-          - '*.py'
+      - any-glob-to-any-file: agents.py
 
-docs:
+"models":
   - changed-files:
-      - any-glob-to-any-file:
-          - 'README.md'
-          - 'CONTRIBUTING.md'
-          - 'docs/**'
-          - '*.md'
+      - any-glob-to-any-file: models.py
 
-workflows:
+"backend":
   - changed-files:
-      - any-glob-to-any-file:
-          - '.github/workflows/**'
-          - '.github/*.yml'
+      - any-glob-to-any-file: utils/**/*
+      - any-glob-to-any-file: app.py
+      - any-glob-to-any-file: agents.py
+
+"templates":
+  - changed-files:
+      - any-glob-to-any-file: templates/**/*
+
+"frontend":
+  - changed-files:
+      - any-glob-to-any-file: static/**/*
+      - any-glob-to-any-file: templates/**/*
+
+"tests":
+  - changed-files:
+      - any-glob-to-any-file: tests/**/*
+
+"documentation":
+  - changed-files:
+      - any-glob-to-any-file: docs/**/*
+      - any-glob-to-any-file: "**/*.md"
+
+"ci/cd":
+  - changed-files:
+      - any-glob-to-any-file: .github/**/*
