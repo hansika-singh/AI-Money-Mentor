@@ -116,11 +116,30 @@ pip install -r requirements.txt -r requirements-dev.txt
 # Configure environment
 cp .env.example .env
 # Add your GROQ_API_KEY to .env
+# Set SECRET_KEY (see below) — required in production
 
 # Run
 python app.py
 # → http://localhost:5000
 ```
+
+### Required environment variables
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `GROQ_API_KEY` | Yes | API key for the Groq LLM provider. |
+| `SECRET_KEY` | Yes in production | Signs Flask session cookies. The app **refuses to start in production** if this is unset; a known fallback is only used in local development. |
+| `FLASK_ENV` | No | `development` (default) or `production`. |
+| `FLASK_DEBUG` | No | Enable debug mode locally; **never** set in production. |
+
+Generate a strong `SECRET_KEY` with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Add the output to your `.env` file as `SECRET_KEY=...`. In production, set it
+via your platform's environment configuration rather than a committed file.
 
 ---
 

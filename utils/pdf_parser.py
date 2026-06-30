@@ -42,9 +42,10 @@ def extract_income(file):
                 Document Text:
                 {doc_text}
                 """
+            
+
                 
-                try:
-                    res = client.chat.completions.create(
+                res = client.chat.completions.create(
                         model="llama-3.1-8b-instant",
                         messages=[
                             {"role": "system", "content": "You are a helpful, precise JSON-only output assistant."},
@@ -53,24 +54,23 @@ def extract_income(file):
                         temperature=0.1
                     )
                     
-                    content = res.choices[0].message.content.strip()
+                content = res.choices[0].message.content.strip()
                     
                     # Clean potential markdown wrappers
-                    if content.startswith("```"):
+                if content.startswith("```"):
                         content = re.sub(r"^```(?:json)?\n", "", content)
                         content = re.sub(r"\n```$", "", content)
                     
-                    parsed_data = json.loads(content)
-                    return parsed_data
+                parsed_data = json.loads(content)
+                return parsed_data
                     
-                except GroqError as groq_err:
+                
+            except GroqError as groq_err:
                     print(f"Groq API error during PDF parsing: {groq_err}")
-                    
-                except json.JSONDecodeError as json_err:
+            except json.JSONDecodeError as json_err:
                     print(f"JSON parsing error from LLM response: {json_err}")
-                    
-                except Exception as llm_err:
-                    print(f"LLM parsing error: {llm_err}")
+            except Exception as e:
+                print(f"Unexpected error during LLM parsing: {e}")
                 
         # Regex Fallback
         result = {
