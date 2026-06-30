@@ -160,17 +160,22 @@ pytest --cov=app tests/       # With coverage
 
 ```
 AI-Money-Mentor/
+├── app.py                 ← Flask entry point (~7000 lines)
+├── agents.py              ← Standalone CLI agents
+├── models.py              ← SQLAlchemy ORM models
+├── requirements.txt       ← Production dependencies
+├── requirements-dev.txt   ← Dev/testing dependencies
+├── .env.example           ← Environment variable template
+├── templates/             ← Jinja2 HTML (40+ pages)
 ├── static/
-│   ├── css/           ← Stylesheets
-│   ├── js/            ← JavaScript
-│   └── assets/        ← Images & icons
-├── templates/         ← Jinja2 HTML
-├── tests/
-│   └── test_tax.py    ← Pytest suite
-├── app.py             ← Flask entry point
-├── requirements.txt
-├── .env.example
-└── README.md
+│   ├── styles/            ← CSS stylesheets
+│   └── scripts/           ← JavaScript files
+├── utils/                 ← Utility modules (30+)
+│   └── config.py          ← Centralized configuration
+├── tests/                 ← Pytest suite (20+ files)
+├── docs/                  ← Documentation
+│   └── api_spec.md        ← API specification
+└── .github/               ← CI/CD workflows
 ```
 
 ---
