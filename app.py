@@ -5084,8 +5084,10 @@ def run_agent_route():
         if not isinstance(data, dict):
             raise ValidationError("Request body must be a JSON object")
         query = validate_string(data.get("query"), "query")
-        response = run_multi_agent(client, query)
-        return jsonify({"response": response})
+        result = run_multi_agent(client, query)
+        if isinstance(result, dict):
+            return jsonify(result)
+        return jsonify({"response": result})
     except ValidationError as e:
         raise e
     except Exception as e:

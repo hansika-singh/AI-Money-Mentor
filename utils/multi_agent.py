@@ -177,16 +177,97 @@ def run_multi_agent(client, query):
     print("ROUTED TO:", task)   # ✅ DEBUG
 
     if task == "SIP":
-        return sip_agent(query)
+        res = sip_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'investment',
+                    'agent_name': 'SIP Calculator',
+                    'specialization': 'Investment & Portfolio Management',
+                    'sub_task': 'SIP Future Value Calculation',
+                    'timeline_point': 'SIP Calculation',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Calculated results are based on inputs. Past performance is not indicative of future returns."
+        }
 
     elif task == "TAX":
-        return tax_agent(query)
+        nums = extract_financial_numbers(query)
+        if not nums:
+            # Fallback to ChiefPlanner for general tax planning queries
+            from .multi_agent_system import ChiefPlanner
+            planner = ChiefPlanner(client)
+            return planner.process_query(query)
+            
+        res = tax_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'tax',
+                    'agent_name': 'Tax Calculator',
+                    'specialization': 'Tax Planning & Optimization',
+                    'sub_task': 'Tax Regime Comparison',
+                    'timeline_point': 'Tax Calculation',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Calculated results are based on Indian tax regime provisions. Consult a CA for final decisions."
+        }
 
     elif task == "STOCK":
-        return stock_agent(query)
+        res = stock_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'investment',
+                    'agent_name': 'Stock Agent',
+                    'specialization': 'Investment & Portfolio Management',
+                    'sub_task': 'Stock Price Check',
+                    'timeline_point': 'Stock Price',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Stock prices are fetched from public APIs and may be delayed. Not investment advice."
+        }
 
     elif task == "SCORE":
-        return score_agent(query)
+        res = score_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'general',
+                    'agent_name': 'Money Score Agent',
+                    'specialization': 'General Financial Guidance',
+                    'sub_task': 'Financial Health Assessment',
+                    'timeline_point': 'Health Check',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Money score is an automated self-assessment based on user inputs."
+        }
 
     else:
-        return ai_agent(client, query)
+        from .multi_agent_system import ChiefPlanner
+        planner = ChiefPlanner(client)
+        return planner.process_query(query)

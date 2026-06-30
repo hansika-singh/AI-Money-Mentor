@@ -1,56 +1,516 @@
 {% extends 'base.html' %}
 
-{% block title %}Multi Agent{% endblock %}
+{% block title %}Collaborative Multi-Agent Plan{% endblock %}
+
+{% block head %}
+<style>
+  /* Glassmorphism & Timeline Styles */
+  .agent-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  
+  .agent-status-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .collaboration-container {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 24px;
+    margin-top: 24px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .collaboration-container.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .timeline-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .timeline-step-wrapper {
+    position: relative;
+  }
+
+  .timeline-step-wrapper:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    top: 100%;
+    width: 2px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    z-index: 1;
+    transition: background 0.3s ease;
+  }
+
+  .timeline-step-wrapper.active:not(:last-child)::after {
+    background: var(--gold);
+  }
+
+  .timeline-step-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+  }
+
+  .timeline-step-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--gold2);
+    transform: translateX(6px);
+  }
+
+  .timeline-step-card.active {
+    background: rgba(212, 168, 67, 0.07);
+    border-color: var(--gold);
+    box-shadow: 0 8px 30px rgba(212, 168, 67, 0.15);
+  }
+
+  .timeline-step-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--gold);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .timeline-step-card.active::before {
+    opacity: 1;
+  }
+
+  .step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .step-num {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    color: var(--gold2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .step-timeline-point {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .step-subtask {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .detail-column {
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01);
+  }
+
+  .tabs-header {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 12px;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .tab-btn.active {
+    color: #0d131f;
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(212, 168, 67, 0.2);
+  }
+
+  .tab-content {
+    display: none;
+    line-height: 1.8;
+    font-size: 14.5px;
+    color: var(--text);
+  }
+
+  .tab-content.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .agent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .agent-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .agent-tag-premium {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 99px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: all 0.3s ease;
+  }
+
+  .agent-tag-premium:hover {
+    border-color: var(--gold);
+    background: rgba(212, 168, 67, 0.04);
+    color: var(--text);
+  }
+
+  .agent-tag-premium .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 8px var(--gold);
+  }
+
+  /* Custom markdown styling for details */
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    color: var(--gold2);
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .markdown-body ul, .markdown-body ol {
+    padding-left: 20px;
+    margin-bottom: 16px;
+  }
+
+  .markdown-body li {
+    margin-bottom: 6px;
+  }
+
+  .disclaimer-card {
+    background: rgba(224, 82, 82, 0.04);
+    border: 1px solid rgba(224, 82, 82, 0.15);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    .collaboration-container {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div id="agent" class="page center-page active">
-  <div class="page-title">🧠 Multi <span>Agent</span></div>
-  <div class="card" style="max-width:600px">
-    <div class="card-title">AI Multi-Agent Financial Analysis</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-      <div class="agent-tag">
-        <div class="dot"></div> Financial Planning Agent
+<div id="agent" class="page center-page active" style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+  <div class="page-title">🧠 Collaborative <span>Planner</span></div>
+  
+  <!-- Query input card -->
+  <div class="card" style="width: 100%; max-width: 900px; margin: 0 auto;">
+    <div class="agent-card-header">
+      <div class="card-title" style="margin: 0;">Multi-Agent Financial Planner</div>
+    </div>
+    <p class="text-muted" style="font-size: 14px; margin-top: -8px; margin-bottom: 16px;">
+      The Chief Planner routes your goal to specialized agents who collaborate sequentially, passing context step-by-step to build a customized plan.
+    </p>
+    
+    <div class="agent-status-badges">
+      <div class="agent-tag-premium"><div class="dot"></div> Investment Agent</div>
+      <div class="agent-tag-premium"><div class="dot"></div> Debt Agent</div>
+      <div class="agent-tag-premium"><div class="dot"></div> Tax Agent</div>
+      <div class="agent-tag-premium"><div class="dot"></div> Retirement Agent</div>
+      <div class="agent-tag-premium"><div class="dot"></div> Insurance Agent</div>
+      <div class="agent-tag-premium"><div class="dot"></div> Portfolio Manager</div>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <label style="font-weight: 600;">Describe Your Financial Goal</label>
+      <textarea id="agentQuery" rows="3" placeholder="e.g. Help me buy a house in 5 years. I earn ₹15L/year, have ₹5L in savings, and need to know how much to save and what mortgage is affordable."
+        style="resize:vertical;margin-top:8px"></textarea>
+    </div>
+
+    <button class="btn btn-gold" style="margin-top: 20px; width: 100%; font-size: 15px; font-weight: 700; padding: 14px;" onclick="runAgent()" id="agentBtn">
+      🚀 Generate Collaborative Financial Plan
+    </button>
+    
+    <div id="agentResult" class="result-box" style="display: none; margin-top: 16px;"></div>
+  </div>
+
+  <!-- Interactive step-by-step plan output container -->
+  <div id="collabContainer" class="collaboration-container" style="display: none;">
+    
+    <!-- Left Column: Sequential Timeline -->
+    <div class="timeline-column">
+      <h3 style="font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 8px; color: var(--gold);">Collaboration Timeline</h3>
+      <div id="timelineList"></div>
+    </div>
+    
+    <!-- Right Column: Plan Detailed View -->
+    <div class="detail-column">
+      <div class="tabs-header">
+        <button id="masterTabBtn" class="tab-btn active" onclick="switchTab('master')">📋 Synthesized Master Plan</button>
+        <button id="agentTabBtn" class="tab-btn" onclick="switchTab('agent')">🤖 Agent Breakdown</button>
       </div>
-      <div class="agent-tag">
-        <div class="dot"></div> Tax Optimization Agent
+      
+      <!-- Synthesized Master Plan Tab -->
+      <div id="masterPlanContent" class="tab-content active markdown-body"></div>
+      
+      <!-- Agent Details Tab -->
+      <div id="agentDetailContent" class="tab-content markdown-body">
+        <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+          <span style="font-size: 32px;">👈</span>
+          <p style="margin-top: 12px;">Click a step on the timeline to view that agent's individual detailed response</p>
+        </div>
       </div>
-      <div class="agent-tag">
-        <div class="dot"></div> Investment Advisor Agent
-      </div>
-      <div class="agent-tag">
-        <div class="dot"></div> Insurance Advisor Agent
+      
+      <!-- Disclaimer section inside the card -->
+      <div id="disclaimerCard" class="disclaimer-card" style="display: none;">
+        <div style="display: flex; gap: 10px; align-items: flex-start;">
+          <span style="font-size: 16px;">⚠️</span>
+          <div id="disclaimerContent" style="color: var(--text-dim); line-height: 1.5;"></div>
+        </div>
       </div>
     </div>
-    <label>Your Financial Query</label>
-    <textarea id="agentQuery" rows="4" placeholder="e.g. Should I invest in NPS or ELSS? I earn ₹12L/year…"
-      style="resize:vertical;margin-top:8px"></textarea>
-    <button class="btn btn-gold" style="margin-top:16px;width:100%" onclick="runAgent()" id="agentBtn">
-      Run Multi-Agent Analysis
-    </button>
-    <div id="agentResult" class="result-box"></div>
+    
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  let planData = null;
+
   async function runAgent() {
     const query = document.getElementById('agentQuery').value.trim();
     if (!query) { showResult('agentResult', '⚠ Enter a query.'); return; }
 
+    const agentResult = document.getElementById('agentResult');
+    const collabContainer = document.getElementById('collabContainer');
+    
+    // Reset/Hide previous result
+    agentResult.innerHTML = '';
+    agentResult.style.display = 'none';
+    collabContainer.classList.remove('visible');
+    collabContainer.style.display = 'none';
+
     setLoading('agentBtn', true);
+    
     try {
       const data = await apiFetch('/agent', { query });
       if (data.error) {
+        agentResult.style.display = 'block';
         showResult('agentResult', `⚠ ${data.error}`);
+      } else if (data.success && data.plan_steps && data.plan_steps.length > 0) {
+        planData = data;
+        renderCollaboration(data);
       } else {
+        // Fallback if data is not structured or success = false
+        agentResult.style.display = 'block';
         const resp = data.response || JSON.stringify(data);
         showResult('agentResult', `<div style="white-space:pre-wrap;font-size:13px;line-height:1.7">${resp}</div>`);
       }
     } catch (e) {
+      agentResult.style.display = 'block';
       showResult('agentResult', '⚠ Could not reach server.');
+      console.error(e);
     }
     setLoading('agentBtn', false);
+  }
+
+  function renderCollaboration(data) {
+    const timelineList = document.getElementById('timelineList');
+    const collabContainer = document.getElementById('collabContainer');
+    
+    // Clear previous timeline
+    timelineList.innerHTML = '';
+    
+    // Render timeline steps
+    data.plan_steps.forEach((step, idx) => {
+      const stepWrapper = document.createElement('div');
+      stepWrapper.className = 'timeline-step-wrapper';
+      
+      const stepCard = document.createElement('div');
+      stepCard.className = `timeline-step-card ${idx === 0 ? 'active' : ''}`;
+      stepCard.id = `step-card-${idx}`;
+      stepCard.onclick = () => selectStep(idx);
+      
+      stepCard.innerHTML = `
+        <div class="step-header">
+          <span class="step-num">Step ${idx + 1}</span>
+          <span class="agent-badge"><span class="dot" style="background: var(--gold);"></span>${step.agent_name}</span>
+        </div>
+        <div class="step-timeline-point">📍 ${step.timeline_point}</div>
+        <div class="step-subtask">${step.sub_task}</div>
+      `;
+      
+      stepWrapper.appendChild(stepCard);
+      timelineList.appendChild(stepWrapper);
+    });
+    
+    // Show synthesized master plan in the viewer
+    const masterPlanContent = document.getElementById('masterPlanContent');
+    const sanitizedHTML = DOMPurify.sanitize(marked.parse(data.response));
+    masterPlanContent.innerHTML = sanitizedHTML;
+    
+    // Set up disclaimer
+    const disclaimerContent = document.getElementById('disclaimerContent');
+    if (data.disclaimer) {
+      disclaimerContent.innerHTML = data.disclaimer;
+      document.getElementById('disclaimerCard').style.display = 'block';
+    } else {
+      document.getElementById('disclaimerCard').style.display = 'none';
+    }
+    
+    // Set active tab to master plan
+    switchTab('master');
+    
+    // Reset agent detail panel
+    document.getElementById('agentDetailContent').innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+        <span style="font-size: 32px;">👈</span>
+        <p style="margin-top: 12px;">Click a step on the timeline to view that agent's individual detailed response</p>
+      </div>
+    `;
+    
+    // Show the container with animation
+    collabContainer.style.display = 'grid';
+    // Small timeout for browser to register block display before applying transition class
+    setTimeout(() => {
+      collabContainer.classList.add('visible');
+    }, 50);
+  }
+
+  function selectStep(idx) {
+    if (!planData || !planData.plan_steps || !planData.plan_steps[idx]) return;
+    
+    // Highlight step card
+    document.querySelectorAll('.timeline-step-card').forEach((card, i) => {
+      if (i === idx) {
+        card.classList.add('active');
+        card.parentElement.classList.add('active');
+      } else {
+        card.classList.remove('active');
+        card.parentElement.classList.remove('active');
+      }
+    });
+    
+    const step = planData.plan_steps[idx];
+    const agentDetailContent = document.getElementById('agentDetailContent');
+    
+    // Render agent details
+    const sanitizedHTML = DOMPurify.sanitize(marked.parse(step.response));
+    agentDetailContent.innerHTML = `
+      <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px;">
+        <h4 style="color: var(--gold); margin: 0 0 4px 0; font-family: 'Syne', sans-serif;">${step.agent_name}</h4>
+        <div style="font-size: 13px; color: var(--text-muted); display: flex; gap: 16px; flex-wrap: wrap;">
+          <span><strong>Specialization:</strong> ${step.specialization}</span>
+          <span><strong>Confidence:</strong> ${step.confidence}</span>
+          <span><strong>Time:</strong> ${step.response_time}s</span>
+        </div>
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 8px; font-style: italic; line-height: 1.4;">
+          <strong>Sub-task:</strong> "${step.sub_task}"
+        </div>
+      </div>
+      <div class="markdown-body">${sanitizedHTML}</div>
+    `;
+    
+    switchTab('agent');
+  }
+
+  function switchTab(tab) {
+    const masterTabBtn = document.getElementById('masterTabBtn');
+    const agentTabBtn = document.getElementById('agentTabBtn');
+    const masterPlanContent = document.getElementById('masterPlanContent');
+    const agentDetailContent = document.getElementById('agentDetailContent');
+    
+    if (tab === 'master') {
+      masterTabBtn.classList.add('active');
+      agentTabBtn.classList.remove('active');
+      masterPlanContent.classList.add('active');
+      agentDetailContent.classList.remove('active');
+    } else {
+      masterTabBtn.classList.remove('active');
+      agentTabBtn.classList.add('active');
+      masterPlanContent.classList.remove('active');
+      agentDetailContent.classList.add('active');
+      
+      // If agent detail is in default state, select the first step
+      const isDefaultState = agentDetailContent.innerHTML.includes('Click a step on the timeline');
+      if (isDefaultState && planData && planData.plan_steps && planData.plan_steps.length > 0) {
+        selectStep(0);
+      }
+    }
   }
 </script>
 {% endblock %}
