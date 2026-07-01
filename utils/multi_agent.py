@@ -64,6 +64,9 @@ def route_query(query):
     elif any(word in query for word in ["score", "financial health", "money score"]):
         return "SCORE"
 
+    elif any(word in query for word in ["insurance", "health insurance", "life insurance", "term plan", "policy"]):
+        return "INSURANCE"
+
     else:
         return "AI"
 
@@ -170,6 +173,38 @@ def score_agent(query):
         return "Score error ❌"
 
 
+# ---------------- 🛡️ INSURANCE ----------------
+def insurance_agent(client, query):
+    try:
+        from utils.agents.insurance_agent import InsuranceAgent
+        from flask_login import current_user
+        
+        context = {}
+        if current_user and current_user.is_authenticated:
+            from models import InsuranceRecommendation
+            rec = InsuranceRecommendation.query.filter_by(user_id=current_user.id).first()
+            if rec:
+                context['age'] = rec.age
+                context['dependents'] = rec.family_size
+                context['annual_income'] = rec.annual_income
+                context['liabilities'] = rec.liabilities
+                context['savings'] = rec.savings
+                context['pre_existing'] = rec.pre_existing
+                context['tier'] = rec.tier
+                
+        agent = InsuranceAgent()
+        agent.set_client(client)
+        task = {
+            'query': query,
+            'context': context
+        }
+        res = agent.execute(task)
+        return res['response']
+    except Exception as e:
+        print("INSURANCE AGENT ERROR:", e)
+        return "Insurance Agent error ❌"
+
+
 # ---------------- 🧠 MAIN ----------------
 def run_multi_agent(client, query):
     task = route_query(query)
@@ -266,6 +301,9 @@ def run_multi_agent(client, query):
             ],
             'disclaimer': "⚠️ **Disclaimer:** Money score is an automated self-assessment based on user inputs."
         }
+
+    elif task == "INSURANCE":
+        return insurance_agent(client, query)
 
     else:
         from .multi_agent_system import ChiefPlanner
