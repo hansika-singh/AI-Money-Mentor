@@ -69,6 +69,11 @@ def calculate_tax(income, deduction_80c=0.0, deduction_80d=0.0, deduction_hra=0.
     # Rebate under Sec 87A for New Regime:
     if taxable_new <= 700000:
         tax_new = 0.0
+    # marginal relief
+    else:
+        diff_amt=taxable_new-700000
+        if diff_amt<=tax_new:
+            tax_new=diff_amt
         
     cess_new = tax_new * 0.04
     total_new = round(tax_new + cess_new, 2)
