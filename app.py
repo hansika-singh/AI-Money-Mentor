@@ -40,7 +40,7 @@ from werkzeug.security import (
 )
 
 
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule, ExpenseGroup, GroupMember, GroupExpense, GroupExpenseSplit, GroupSettlement
 
 
 
@@ -1654,7 +1654,290 @@ def tax_filing_parse_form16():
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-             
+
+
+# ---------------- GROUP EXPENSES ----------------
+
+@app.route("/group-expenses", methods=["GET"])
+@login_required
+def group_expenses_page():
+    return render_template("group_expenses.html", active_page="group-expenses")
+
+
+@app.route("/api/groups", methods=["GET"])
+@login_required
+def list_groups():
+    memberships = GroupMember.query.filter_by(user_id=current_user.id, is_active=True).all()
+    groups = [m.group.to_dict() for m in memberships]
+    return jsonify({"groups": groups})
+
+
+@app.route("/api/groups", methods=["POST"])
+@login_required
+def create_group():
+    data = request.json or {}
+    if not isinstance(data, dict):
+        raise ValidationError("Request body must be a JSON object")
+    name = validate_string(data.get("name"), "name", min_length=1, max_length=100)
+    description = data.get("description", "")
+    currency = data.get("currency", "INR")
+
+    group = ExpenseGroup(name=name, description=description, currency=currency, created_by=current_user.id)
+    db.session.add(group)
+    db.session.flush()
+
+    admin = GroupMember(group_id=group.id, user_id=current_user.id, role="admin")
+    db.session.add(admin)
+    db.session.commit()
+
+    return jsonify({"group": group.to_dict()}), 201
+
+
+@app.route("/api/groups/<int:group_id>", methods=["GET"])
+@login_required
+def get_group(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, is_active=True).first()
+    if not membership:
+        return jsonify({"error": "You are not a member of this group"}), 403
+
+    members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
+    expenses = GroupExpense.query.filter_by(group_id=group_id).order_by(GroupExpense.expense_date.desc()).all()
+
+    return jsonify({
+        "group": group.to_dict(),
+        "members": [m.to_dict() for m in members],
+        "expenses": [e.to_dict() for e in expenses],
+    })
+
+
+@app.route("/api/groups/<int:group_id>/members", methods=["POST"])
+@login_required
+def add_group_member(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, role="admin", is_active=True).first()
+    if not membership:
+        return jsonify({"error": "Only group admins can add members"}), 403
+
+    data = request.json or {}
+    if not isinstance(data, dict):
+        raise ValidationError("Request body must be a JSON object")
+
+    user_id = validate_int(data.get("user_id"), "user_id", min_val=1)
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    existing = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
+    if existing and existing.is_active:
+        return jsonify({"error": "User is already a member"}), 400
+
+    if existing:
+        existing.is_active = True
+        existing.role = data.get("role", "member")
+    else:
+        member = GroupMember(group_id=group_id, user_id=user_id, role=data.get("role", "member"), nickname=data.get("nickname"))
+        db.session.add(member)
+
+    db.session.commit()
+    return jsonify({"message": "Member added"})
+
+
+@app.route("/api/groups/<int:group_id>/members/<int:user_id>", methods=["DELETE"])
+@login_required
+def remove_group_member(group_id, user_id):
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, role="admin", is_active=True).first()
+    if not membership:
+        return jsonify({"error": "Only group admins can remove members"}), 403
+
+    target = GroupMember.query.filter_by(group_id=group_id, user_id=user_id, is_active=True).first()
+    if not target:
+        return jsonify({"error": "Member not found"}), 404
+
+    target.is_active = False
+    db.session.commit()
+    return jsonify({"message": "Member removed"})
+
+
+@app.route("/api/groups/<int:group_id>/expenses", methods=["POST"])
+@login_required
+def add_group_expense(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, is_active=True).first()
+    if not membership:
+        return jsonify({"error": "You are not a member of this group"}), 403
+
+    data = request.json or {}
+    if not isinstance(data, dict):
+        raise ValidationError("Request body must be a JSON object")
+
+    description = validate_string(data.get("description"), "description")
+    amount = validate_float(data.get("amount"), "amount", min_val=0.01)
+    category = data.get("category", "Other")
+    paid_by = validate_int(data.get("paid_by"), "paid_by", min_val=1)
+    split_type = data.get("split_type", "EQUAL")
+    expense_date_str = validate_string(data.get("expense_date"), "expense_date")
+
+    try:
+        expense_date = datetime.strptime(expense_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValidationError("'expense_date' must be in YYYY-MM-DD format")
+
+    active_members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
+    member_ids = [m.user_id for m in active_members]
+
+    if paid_by not in member_ids:
+        return jsonify({"error": "Payer must be a group member"}), 400
+
+    expense = GroupExpense(
+        group_id=group_id,
+        description=description,
+        amount=amount,
+        category=category,
+        paid_by=paid_by,
+        split_type=split_type.upper(),
+        expense_date=expense_date,
+        notes=data.get("notes"),
+    )
+    db.session.add(expense)
+    db.session.flush()
+
+    if split_type.upper() == "EQUAL":
+        share = round(amount / len(member_ids), 2)
+        for i, uid in enumerate(member_ids):
+            amt = share if i < len(member_ids) - 1 else round(amount - share * (len(member_ids) - 1), 2)
+            db.session.add(GroupExpenseSplit(expense_id=expense.id, user_id=uid, amount=amt))
+
+    elif split_type.upper() == "PERCENTAGE":
+        percentages = data.get("percentages", {})
+        total_pct = 0
+        for uid in member_ids:
+            pct = float(percentages.get(str(uid), percentages.get(uid, 0)))
+            total_pct += pct
+            db.session.add(GroupExpenseSplit(expense_id=expense.id, user_id=uid, amount=round(amount * pct / 100, 2), percentage=pct))
+        if abs(total_pct - 100) > 0.01:
+            raise ValidationError(f"Percentages must sum to 100 (got {total_pct})")
+
+    elif split_type.upper() == "EXACT":
+        exact_amounts = data.get("exact_amounts", {})
+        total = 0
+        for uid in member_ids:
+            amt = float(exact_amounts.get(str(uid), exact_amounts.get(uid, 0)))
+            total += amt
+            db.session.add(GroupExpenseSplit(expense_id=expense.id, user_id=uid, amount=amt))
+        if abs(total - amount) > 0.01:
+            raise ValidationError(f"Exact amounts must sum to {amount} (got {total})")
+
+    else:
+        raise ValidationError(f"Invalid split_type: {split_type}. Use EQUAL, PERCENTAGE, or EXACT")
+
+    db.session.commit()
+    return jsonify({"expense": expense.to_dict()}), 201
+
+
+@app.route("/api/groups/<int:group_id>/balance", methods=["GET"])
+@login_required
+def get_group_balance(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, is_active=True).first()
+    if not membership:
+        return jsonify({"error": "You are not a member of this group"}), 403
+
+    active_members = GroupMember.query.filter_by(group_id=group_id, is_active=True).all()
+    member_map = {m.user_id: m.nickname or f"User {m.user_id}" for m in active_members}
+
+    balances = {uid: 0.0 for uid in member_map}
+
+    expenses = GroupExpense.query.filter_by(group_id=group_id).all()
+    for exp in expenses:
+        for split in exp.splits:
+            if not split.is_settled:
+                if split.user_id != exp.paid_by:
+                    balances[split.user_id] = balances.get(split.user_id, 0) - float(split.amount)
+                    balances[exp.paid_by] = balances.get(exp.paid_by, 0) + float(split.amount)
+
+    settlements = GroupSettlement.query.filter_by(group_id=group_id).all()
+    for s in settlements:
+        balances[s.from_user_id] = balances.get(s.from_user_id, 0) + float(s.amount)
+        balances[s.to_user_id] = balances.get(s.to_user_id, 0) - float(s.amount)
+
+    debtors = []
+    creditors = []
+    for uid, bal in balances.items():
+        if bal < -0.01:
+            debtors.append({"user_id": uid, "name": member_map[uid], "amount": round(abs(bal), 2)})
+        elif bal > 0.01:
+            creditors.append({"user_id": uid, "name": member_map[uid], "amount": round(bal, 2)})
+
+    debtors.sort(key=lambda x: x["amount"], reverse=True)
+    creditors.sort(key=lambda x: x["amount"], reverse=True)
+
+    transfers = []
+    di, ci = 0, 0
+    while di < len(debtors) and ci < len(creditors):
+        amt = min(debtors[di]["amount"], creditors[ci]["amount"])
+        if amt > 0.01:
+            transfers.append({
+                "from": debtors[di]["name"],
+                "from_id": debtors[di]["user_id"],
+                "to": creditors[ci]["name"],
+                "to_id": creditors[ci]["user_id"],
+                "amount": round(amt, 2),
+            })
+        debtors[di]["amount"] = round(debtors[di]["amount"] - amt, 2)
+        creditors[ci]["amount"] = round(creditors[ci]["amount"] - amt, 2)
+        if debtors[di]["amount"] < 0.01:
+            di += 1
+        if creditors[ci]["amount"] < 0.01:
+            ci += 1
+
+    return jsonify({
+        "balances": {member_map[uid]: round(bal, 2) for uid, bal in balances.items()},
+        "transfers": transfers,
+    })
+
+
+@app.route("/api/groups/<int:group_id>/settle", methods=["POST"])
+@login_required
+def settle_group_debt(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    membership = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id, is_active=True).first()
+    if not membership:
+        return jsonify({"error": "You are not a member of this group"}), 403
+
+    data = request.json or {}
+    if not isinstance(data, dict):
+        raise ValidationError("Request body must be a JSON object")
+
+    to_user_id = validate_int(data.get("to_user_id"), "to_user_id", min_val=1)
+    amount = validate_float(data.get("amount"), "amount", min_val=0.01)
+    note = data.get("note", "")
+
+    settlement = GroupSettlement(
+        group_id=group_id,
+        from_user_id=current_user.id,
+        to_user_id=to_user_id,
+        amount=amount,
+        note=note,
+    )
+    db.session.add(settlement)
+    db.session.commit()
+
+    return jsonify({"settlement": settlement.to_dict()}), 201
+
+
+@app.route("/api/groups/<int:group_id>", methods=["DELETE"])
+@login_required
+def delete_group(group_id):
+    group = ExpenseGroup.query.get_or_404(group_id)
+    if group.created_by != current_user.id:
+        return jsonify({"error": "Only the group creator can delete it"}), 403
+
+    db.session.delete(group)
+    db.session.commit()
+    return jsonify({"message": "Group deleted"})
+
+
 
 # ---------------- RETIREMENT ----------------
 # @app.route('/retirement')

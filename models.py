@@ -1247,6 +1247,156 @@ class SipSchedule(db.Model):
         }
 
 
+# ============================================
+# GROUP EXPENSE MODELS
+# ============================================
+
+class ExpenseGroup(db.Model):
+    """A group of users who share expenses (roommates, trip companions, etc.)."""
+    __tablename__ = 'expense_groups'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(300), nullable=True)
+    currency = db.Column(db.String(10), default='INR', nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = db.relationship('User', backref='created_groups')
+    members = db.relationship('GroupMember', backref='group', lazy=True, cascade='all, delete-orphan')
+    expenses = db.relationship('GroupExpense', backref='group', lazy=True, cascade='all, delete-orphan')
+    settlements = db.relationship('GroupSettlement', backref='group', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'currency': self.currency,
+            'created_by': self.created_by,
+            'is_active': self.is_active,
+            'member_count': len(self.members),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class GroupMember(db.Model):
+    """Membership of a user in an ExpenseGroup."""
+    __tablename__ = 'group_members'
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('expense_groups.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    role = db.Column(db.String(20), default='member')  # admin, member
+    nickname = db.Column(db.String(80), nullable=True)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+
+    user = db.relationship('User', backref='group_memberships')
+
+    __table_args__ = (
+        db.UniqueConstraint('group_id', 'user_id', name='uq_group_member'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'user_id': self.user_id,
+            'role': self.role,
+            'nickname': self.nickname,
+            'joined_at': self.joined_at.isoformat() if self.joined_at else None,
+        }
+
+
+class GroupExpense(db.Model):
+    """An expense logged within a group, paid by one member."""
+    __tablename__ = 'group_expenses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('expense_groups.id'), nullable=False)
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    category = db.Column(db.String(50), default='Other')
+    paid_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    split_type = db.Column(db.String(20), default='EQUAL')  # EQUAL, PERCENTAGE, EXACT
+    expense_date = db.Column(db.Date, nullable=False)
+    receipt_url = db.Column(db.String(300), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    payer = db.relationship('User', backref='group_expenses_paid')
+    splits = db.relationship('GroupExpenseSplit', backref='expense', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'description': self.description,
+            'amount': float(self.amount),
+            'category': self.category,
+            'paid_by': self.paid_by,
+            'split_type': self.split_type,
+            'expense_date': self.expense_date.isoformat() if self.expense_date else None,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'splits': [s.to_dict() for s in self.splits],
+        }
+
+
+class GroupExpenseSplit(db.Model):
+    """How much each member owes for a GroupExpense."""
+    __tablename__ = 'group_expense_splits'
+
+    id = db.Column(db.Integer, primary_key=True)
+    expense_id = db.Column(db.Integer, db.ForeignKey('group_expenses.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    percentage = db.Column(db.Numeric(5, 2), nullable=True)
+    is_settled = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', backref='group_expense_splits')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'expense_id': self.expense_id,
+            'user_id': self.user_id,
+            'amount': float(self.amount),
+            'percentage': float(self.percentage) if self.percentage else None,
+            'is_settled': self.is_settled,
+        }
+
+
+class GroupSettlement(db.Model):
+    """A payment made between members to settle debts within a group."""
+    __tablename__ = 'group_settlements'
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('expense_groups.id'), nullable=False)
+    from_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    to_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    note = db.Column(db.String(200), nullable=True)
+    settled_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    from_user = db.relationship('User', foreign_keys=[from_user_id], backref='settlements_made')
+    to_user = db.relationship('User', foreign_keys=[to_user_id], backref='settlements_received')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'group_id': self.group_id,
+            'from_user_id': self.from_user_id,
+            'to_user_id': self.to_user_id,
+            'amount': float(self.amount),
+            'note': self.note,
+            'settled_at': self.settled_at.isoformat() if self.settled_at else None,
+        }
+
+
 
 
 
