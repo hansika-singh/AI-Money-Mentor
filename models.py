@@ -1247,6 +1247,56 @@ class SipSchedule(db.Model):
         }
 
 
+# ============================================
+# RISK PROFILE MODELS
+# ============================================
+
+class RiskProfile(db.Model):
+    """Stores a user's risk assessment results and questionnaire responses."""
+    __tablename__ = 'risk_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    risk_category = db.Column(db.String(20), nullable=False)  # Conservative, Moderate, Aggressive
+    risk_score = db.Column(db.Float, nullable=False)  # 0-100 score
+    # Questionnaire answers
+    age_range = db.Column(db.String(20), nullable=True)  # 18-30, 31-45, 46-60, 60+
+    income_stability = db.Column(db.String(20), nullable=True)  # stable, moderate, variable
+    risk_tolerance = db.Column(db.String(20), nullable=True)  # low, medium, high
+    investment_horizon = db.Column(db.String(20), nullable=True)  # short (<3y), medium (3-7y), long (7y+)
+    loss_capacity = db.Column(db.String(20), nullable=True)  # cannot_loss, some_loss, can_loss
+    existing_experience = db.Column(db.String(20), nullable=True)  # beginner, intermediate, experienced
+    # Recommended allocation
+    equity_pct = db.Column(db.Float, default=0)
+    debt_pct = db.Column(db.Float, default=0)
+    gold_pct = db.Column(db.Float, default=0)
+    cash_pct = db.Column(db.Float, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref='risk_profiles')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'risk_category': self.risk_category,
+            'risk_score': self.risk_score,
+            'age_range': self.age_range,
+            'income_stability': self.income_stability,
+            'risk_tolerance': self.risk_tolerance,
+            'investment_horizon': self.investment_horizon,
+            'loss_capacity': self.loss_capacity,
+            'existing_experience': self.existing_experience,
+            'equity_pct': self.equity_pct,
+            'debt_pct': self.debt_pct,
+            'gold_pct': self.gold_pct,
+            'cash_pct': self.cash_pct,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 
 
 

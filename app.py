@@ -40,7 +40,7 @@ from werkzeug.security import (
 )
 
 
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule
+from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule, RiskProfile
 
 
 
@@ -6435,7 +6435,168 @@ def check_all_recurring_expenses_job():
             db.session.add(exp)
         db.session.commit()
 
-# ---------------- ADDITIONAL SCHEDULERS ----------------
+# ---------------- RISK PROFILE & PORTFOLIO ADVISOR ----------------
+
+RISK_QUESTIONS = [
+    {"key": "age_range", "question": "What is your age range?", "options": ["18-30", "31-45", "46-60", "60+"]},
+    {"key": "income_stability", "question": "How stable is your income?", "options": ["stable", "moderate", "variable"]},
+    {"key": "risk_tolerance", "question": "How much investment risk are you comfortable with?", "options": ["low", "medium", "high"]},
+    {"key": "investment_horizon", "question": "How long do you plan to stay invested?", "options": ["short", "medium", "long"]},
+    {"key": "loss_capacity", "question": "If your portfolio dropped 20%, what would you do?", "options": ["cannot_loss", "some_loss", "can_loss"]},
+    {"key": "existing_experience", "question": "What is your investment experience?", "options": ["beginner", "intermediate", "experienced"]},
+]
+
+SCORING_MATRIX = {
+    "age_range": {"18-30": 30, "31-45": 25, "46-60": 15, "60+": 5},
+    "income_stability": {"stable": 20, "moderate": 12, "variable": 5},
+    "risk_tolerance": {"high": 25, "medium": 15, "low": 5},
+    "investment_horizon": {"long": 20, "medium": 12, "short": 5},
+    "loss_capacity": {"can_loss": 25, "some_loss": 15, "cannot_loss": 5},
+    "existing_experience": {"experienced": 20, "intermediate": 12, "beginner": 5},
+}
+
+RISK_ALLOCATIONS = {
+    "Conservative": {"equity": 20, "debt": 50, "gold": 15, "cash": 15},
+    "Moderate": {"equity": 50, "debt": 30, "gold": 10, "cash": 10},
+    "Aggressive": {"equity": 70, "debt": 15, "gold": 10, "cash": 5},
+}
+
+SIP_MUTUAL_FUND_SUGGESTIONS = {
+    "Conservative": {
+        "equity": ["HDFC Balanced Advantage Fund", "ICICI Prudential Equity & Debt Fund"],
+        "debt": ["HDFC Short Term Debt Fund", "ICICI Prudential Short Term Fund"],
+        "gold": ["SBI Gold ETF", "Nippon India Gold ETF"],
+    },
+    "Moderate": {
+        "equity": ["HDFC Mid-Cap Opportunities Fund", "Axis Bluechip Fund"],
+        "debt": ["HDFC Corporate Bond Fund", "ICICI Prudential Credit Risk Fund"],
+        "gold": ["SBI Gold ETF", "Nippon India Gold ETF"],
+    },
+    "Aggressive": {
+        "equity": ["Parag Parikh Flexi Cap Fund", "Axis Small Cap Fund", "Mirae Asset Emerging Bluechip"],
+        "debt": ["HDFC Credit Risk Debt Fund"],
+        "gold": ["SBI Gold ETF"],
+    },
+}
+
+
+def _calculate_risk_score(answers):
+    score = 0
+    for key, value in answers.items():
+        if key in SCORING_MATRIX and value in SCORING_MATRIX[key]:
+            score += SCORING_MATRIX[key][value]
+    if score >= 70:
+        return "Aggressive", score
+    if score >= 40:
+        return "Moderate", score
+    return "Conservative", score
+
+
+@app.route("/risk-advisor", methods=["GET"])
+@login_required
+def risk_advisor_page():
+    return render_template("risk_advisor.html", active_page="risk-advisor")
+
+
+@app.route("/api/risk-profile/questions", methods=["GET"])
+@login_required
+def get_risk_questions():
+    return jsonify({"questions": RISK_QUESTIONS})
+
+
+@app.route("/api/risk-profile", methods=["GET"])
+@login_required
+def get_risk_profile():
+    profile = RiskProfile.query.filter_by(user_id=current_user.id).order_by(RiskProfile.created_at.desc()).first()
+    if not profile:
+        return jsonify({"profile": None})
+    return jsonify({"profile": profile.to_dict()})
+
+
+@app.route("/api/risk-profile/assess", methods=["POST"])
+@login_required
+def assess_risk_profile():
+    data = request.json or {}
+    if not isinstance(data, dict):
+        raise ValidationError("Request body must be a JSON object")
+
+    answers = {}
+    for q in RISK_QUESTIONS:
+        val = data.get(q["key"])
+        if val not in q["options"]:
+            raise ValidationError(f"Invalid option for '{q['key']}': must be one of {q['options']}")
+        answers[q["key"]] = val
+
+    risk_category, risk_score = _calculate_risk_score(answers)
+    alloc = RISK_ALLOCATIONS[risk_category]
+
+    profile = RiskProfile(
+        user_id=current_user.id,
+        risk_category=risk_category,
+        risk_score=risk_score,
+        age_range=answers.get("age_range"),
+        income_stability=answers.get("income_stability"),
+        risk_tolerance=answers.get("risk_tolerance"),
+        investment_horizon=answers.get("investment_horizon"),
+        loss_capacity=answers.get("loss_capacity"),
+        existing_experience=answers.get("existing_experience"),
+        equity_pct=alloc["equity"],
+        debt_pct=alloc["debt"],
+        gold_pct=alloc["gold"],
+        cash_pct=alloc["cash"],
+    )
+    db.session.add(profile)
+    db.session.commit()
+
+    return jsonify({"profile": profile.to_dict()}), 201
+
+
+@app.route("/api/risk-profile/advice", methods=["GET"])
+@login_required
+def get_risk_advice():
+    profile = RiskProfile.query.filter_by(user_id=current_user.id).order_by(RiskProfile.created_at.desc()).first()
+    if not profile:
+        return jsonify({"error": "No risk profile found. Please complete the questionnaire first."}), 404
+
+    category = profile.risk_category
+    suggestions = SIP_MUTUAL_FUND_SUGGESTIONS.get(category, {})
+
+    horizon_years = {"short": 2, "medium": 5, "long": 10}.get(profile.investment_horizon or "medium", 5)
+    monthly_sips = {"Conservative": 5000, "Moderate": 10000, "Aggressive": 15000}
+    suggested_monthly = monthly_sips.get(category, 10000)
+
+    projections = {}
+    for rate_label, annual_rate in [("conservative", 0.08), ("expected", 0.12), ("optimistic", 0.16)]:
+        monthly_rate = annual_rate / 12
+        months = horizon_years * 12
+        if monthly_rate > 0:
+            fv = suggested_monthly * ((1 + monthly_rate) ** months - 1) / monthly_rate * (1 + monthly_rate)
+        else:
+            fv = suggested_monthly * months
+        total_invested = suggested_monthly * months
+        projections[rate_label] = {
+            "monthly_sip": suggested_monthly,
+            "total_invested": round(total_invested, 2),
+            "future_value": round(fv, 2),
+            "wealth_gain": round(fv - total_invested, 2),
+        }
+
+    return jsonify({
+        "risk_category": category,
+        "risk_score": profile.risk_score,
+        "allocation": {
+            "equity": profile.equity_pct,
+            "debt": profile.debt_pct,
+            "gold": profile.gold_pct,
+            "cash": profile.cash_pct,
+        },
+        "suggestions": suggestions,
+        "projections": projections,
+        "horizon_years": horizon_years,
+    })
+
+
+
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     scheduler = BackgroundScheduler()
     scheduler.add_job(check_all_budgets_job, 'interval', days=1)
