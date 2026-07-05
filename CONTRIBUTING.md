@@ -81,13 +81,22 @@ python app.py
 ```
 AI-Money-Mentor/
 ├── app.py                  # Flask application entry point
-├── agents.py               # Agent definitions
-├── requirements.txt        # Python dependencies
-├── pyproject.toml          # Pytest configuration
+├── agents.py               # Standalone CLI agent definitions
+├── models.py               # SQLAlchemy ORM models
+├── requirements.txt        # Python production dependencies
+├── requirements-dev.txt    # Dev/test-only dependencies (pytest, etc.)
+├── dev-requirements.txt    # Husky/pre-commit hook dependencies
 ├── .env.example            # Environment variable template
-├── templates/
-│   └── index.html          # Single-page frontend (HTML/CSS/JS)
+├── templates/              # Jinja2 HTML templates (40+ pages)
+│   ├── dashboard.html
+│   ├── chat.html
+│   ├── tax.html
+│   └── ...
+├── static/
+│   ├── styles/             # CSS stylesheets
+│   └── scripts/            # JavaScript files
 ├── utils/
+│   ├── config.py           # Centalized app configuration
 │   ├── sip.py              # SIP (mutual fund) calculator
 │   ├── tax.py              # Indian income tax calculator
 │   ├── money_score.py      # Financial health scoring engine
@@ -95,17 +104,24 @@ AI-Money-Mentor/
 │   ├── stock.py            # yfinance stock data wrapper
 │   ├── pdf_parser.py       # LLM + regex PDF financial parser
 │   ├── multi_agent.py      # Query router & specialist agents
-│   └── persistence.py      # JSON-file data persistence layer
+│   ├── agents/             # Multi-agent system sub-package
+│   │   ├── base_agent.py
+│   │   ├── tax_agent.py
+│   │   ├── investment_agent.py
+│   │   └── ...
+│   └── ...                 # 30+ utility modules
 ├── tests/
 │   ├── test_sip.py
 │   ├── test_tax.py
 │   ├── test_money_score.py
-│   └── test_expense_track.py
+│   └── ...                 # 20+ test files
 └── .github/
-    ├── ISSUE_TEMPLATE/     # Bug, Feature, Docs templates
-    ├── PULL_REQUEST_TEMPLATE.md
-    └── workflows/
-        └── ci.yml          # GitHub Actions CI pipeline
+    ├── workflows/          # GitHub Actions CI/CD
+    │   ├── security.yml
+    │   ├── stale.yml
+    │   └── pr-labeler.yml
+    ├── labeler.yml         # PR auto-labeling config
+    └── ISSUE_TEMPLATE/     # Bug, Feature, Docs templates
 ```
 
 ---
@@ -167,16 +183,16 @@ pytest tests/ --cov=utils --cov-report=term-missing
 
 ## Commit Message Convention
 
-This project follows [Conventional Commits](https://www.conventionalcommits.org/). Commit linting is enforced via `pre-commit` hooks.
+This project follows [Conventional Commits](https://www.conventionalcommits.org/). Commit linting is enforced via `husky` + `@commitlint/config-conventional`.
 
-### Setup pre-commit hooks (one-time)
+### Setup commit hooks (one-time)
 
 ```bash
-# Install pre-commit
-pip install -r dev-requirements.txt
+# Install npm dependencies (husky + commitlint)
+npm install
 
-# Install the git hooks
-pre-commit install --hook-type commit-msg
+# Husky automatically installs the commit-msg hook via `npm run prepare`
+# After this, any commit that doesn't follow the convention will be rejected.
 ```
 
 After setup, any commit that doesn't follow the convention will be rejected.
@@ -280,7 +296,7 @@ Before opening an issue, please:
 
 ### Python
 
-- PEP 8 style (enforced by `flake8` in CI — max line length: 127)
+- PEP 8 style (max line length: 127)
 - Type hints encouraged but not mandatory
 - Docstrings on all public functions (`"""Short summary.\n\nLonger detail."""`)
 - No bare `except:` — always catch specific exception types

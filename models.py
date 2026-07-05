@@ -474,6 +474,15 @@ class FxRateCache(db.Model):
     rate = db.Column(db.Float, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "from_currency": self.from_currency,
+            "to_currency": self.to_currency,
+            "rate": self.rate,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 class FinancialGoalMilestone(db.Model):
     __tablename__ = "financial_goal_milestones"
     id = db.Column(db.Integer, primary_key=True)
@@ -642,11 +651,9 @@ class LedgerEntry(db.Model):
             'amount': float(self.amount),
             'description': self.description,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None
-
-
         }
 
-        # ============================================
+# ============================================
 # COUPLE FINANCE MODELS
 # ============================================
 
@@ -862,18 +869,15 @@ class CoupleAlert(db.Model):
             'message': self.message,
             'is_read': self.is_read,
             'created_at': self.created_at.isoformat() if self.created_at else None
-
-
         }
 
-
-        # ============================================
+# ============================================
 # COUPLE FINANCE MODELS
 # ============================================
 
 
 
-   # ============================================
+# ============================================
 # BANK INTEGRATION MODELS
 # ============================================
 
@@ -1148,9 +1152,7 @@ class NotificationPreference(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
-
-
-        # ============================================
+# ============================================
 # MFA MODELS
 # ============================================
 

@@ -47,6 +47,8 @@ def emi_calculation(principal, rate, time, income):
   return {"EMI":emi,"Net_take_home":net}
   
 def financial_check(emi, income):
+  if income is None or income <= 0:
+    raise ValueError("Income must be greater than 0")
   ratio=(emi/income)
   percentage=(emi/income)*100
   if percentage<30:
