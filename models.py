@@ -69,6 +69,12 @@ class User(UserMixin, db.Model):
         nullable=False
     )
 
+    points = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
 
 class Portfolio(db.Model):
     __tablename__ = "portfolio"
@@ -107,6 +113,48 @@ class Portfolio(db.Model):
             "pnl": round(pnl, 2),
             "pnl_percent": round(pnl_percent, 2),
             "investment_type": self.investment_type
+        }
+
+
+class CryptoHolding(db.Model):
+    __tablename__ = "crypto_holdings"
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref="crypto_holdings")
+    id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    quantity = db.Column(db.Float, nullable=False)
+    buy_price = db.Column(db.Float, nullable=False)
+    buy_date = db.Column(db.String(40), nullable=False)
+    notes = db.Column(db.String(200), nullable=True)
+    wallet_address = db.Column(db.String(100), nullable=True)
+    currency = db.Column(db.String(10), default='USD', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self, current_price=None):
+        current_price = current_price or self.buy_price
+        current_value = self.quantity * current_price
+        invested_value = self.quantity * self.buy_price
+        pnl = current_value - invested_value
+        pnl_percent = (pnl / invested_value * 100) if invested_value > 0 else 0.0
+        
+        return {
+            "user_id": self.user_id,
+            "id": self.id,
+            "symbol": self.symbol.upper(),
+            "name": self.name,
+            "quantity": self.quantity,
+            "buy_price": self.buy_price,
+            "currency": self.currency,
+            "buy_date": self.buy_date,
+            "notes": self.notes,
+            "wallet_address": self.wallet_address,
+            "current_price": current_price,
+            "current_value": round(current_value, 2),
+            "invested_value": round(invested_value, 2),
+            "pnl": round(pnl, 2),
+            "pnl_percent": round(pnl_percent, 2),
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
 
@@ -426,6 +474,15 @@ class FxRateCache(db.Model):
     rate = db.Column(db.Float, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "from_currency": self.from_currency,
+            "to_currency": self.to_currency,
+            "rate": self.rate,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 class FinancialGoalMilestone(db.Model):
     __tablename__ = "financial_goal_milestones"
     id = db.Column(db.Integer, primary_key=True)
@@ -594,11 +651,9 @@ class LedgerEntry(db.Model):
             'amount': float(self.amount),
             'description': self.description,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None
-
-
         }
 
-        # ============================================
+# ============================================
 # COUPLE FINANCE MODELS
 # ============================================
 
@@ -814,18 +869,15 @@ class CoupleAlert(db.Model):
             'message': self.message,
             'is_read': self.is_read,
             'created_at': self.created_at.isoformat() if self.created_at else None
-
-
         }
 
-
-        # ============================================
+# ============================================
 # COUPLE FINANCE MODELS
 # ============================================
 
 
 
-   # ============================================
+# ============================================
 # BANK INTEGRATION MODELS
 # ============================================
 
@@ -1100,9 +1152,7 @@ class NotificationPreference(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
-
-
-        # ============================================
+# ============================================
 # MFA MODELS
 # ============================================
 
@@ -1243,7 +1293,6 @@ class SipSchedule(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_notified_at": self.last_notified_at.isoformat() if self.last_notified_at else None,
             "total_invested": self.total_invested
-
         }
 
 
@@ -1397,7 +1446,85 @@ class GroupSettlement(db.Model):
         }
 
 
+class InsurancePolicy(db.Model):
+    __tablename__ = "insurance_policies"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user = db.relationship("User", backref=db.backref("insurance_policies", lazy=True, cascade="all, delete-orphan"))
+    
+    policy_name = db.Column(db.String(100), nullable=False)
+    policy_type = db.Column(db.String(20), nullable=False)  # "life" or "health"
+    provider = db.Column(db.String(100), nullable=False)
+    sum_insured = db.Column(db.Float, nullable=False)
+    premium_amount = db.Column(db.Float, nullable=False)
+    premium_frequency = db.Column(db.String(20), nullable=False)  # "annual", "monthly", etc.
+    expiry_date = db.Column(db.String(40), nullable=True)  # YYYY-MM-DD
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "policy_name": self.policy_name,
+            "policy_type": self.policy_type,
+            "provider": self.provider,
+            "sum_insured": self.sum_insured,
+            "premium_amount": self.premium_amount,
+            "premium_frequency": self.premium_frequency,
+            "expiry_date": self.expiry_date,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
 
+class UserQuizAttempt(db.Model):
+    __tablename__ = 'user_quiz_attempts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)
+    quiz = db.relationship('Quiz')
+    score = db.Column(db.Integer, nullable=False)  # number of correct answers
+    total_questions = db.Column(db.Integer, nullable=False)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class InsuranceRecommendation(db.Model):
+    __tablename__ = "insurance_recommendations"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, unique=True)
+    user = db.relationship("User", backref=db.backref("insurance_recommendation", uselist=False, cascade="all, delete-orphan"))
+    
+    age = db.Column(db.Integer, nullable=False)
+    retirement_age = db.Column(db.Integer, nullable=False)
+    annual_income = db.Column(db.Float, nullable=False)
+    personal_expenses = db.Column(db.Float, nullable=False)
+    liabilities = db.Column(db.Float, nullable=False)
+    savings = db.Column(db.Float, nullable=False)
+    family_size = db.Column(db.String(20), nullable=False)
+    tier = db.Column(db.String(10), nullable=False)
+    pre_existing = db.Column(db.Boolean, default=False)
+    
+    recommended_life = db.Column(db.Float, nullable=False)
+    recommended_health = db.Column(db.Float, nullable=False)
+    ai_suggestions = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "age": self.age,
+            "retirement_age": self.retirement_age,
+            "annual_income": self.annual_income,
+            "personal_expenses": self.personal_expenses,
+            "liabilities": self.liabilities,
+            "savings": self.savings,
+            "family_size": self.family_size,
+            "tier": self.tier,
+            "pre_existing": self.pre_existing,
+            "recommended_life": self.recommended_life,
+            "recommended_health": self.recommended_health,
+            "ai_suggestions": self.ai_suggestions,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }

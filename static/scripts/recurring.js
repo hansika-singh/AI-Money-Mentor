@@ -94,6 +94,11 @@ function renderRecurringList(recurring) {
     html += '</tbody></table></div>';
     container.innerHTML = html;
 }
+function startOfDay(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
 
 function updateStats(recurring) {
     const active = recurring.filter(r => r.is_active);
@@ -105,13 +110,13 @@ function updateStats(recurring) {
         return sum + r.amount;
     }, 0);
     
-    const today = new Date();
-    const weekLater = new Date(today);
+    const today = startOfDay(new Date());
+    const weekLater = startOfDay(new Date());
     weekLater.setDate(today.getDate() + 7);
     
     const dueThisWeek = active.filter(r => {
         if (!r.next_due_date) return false;
-        const dueDate = new Date(r.next_due_date);
+        const dueDate = startOfDay(new Date(r.next_due_date + 'T00:00:00'));
         return dueDate >= today && dueDate <= weekLater;
     });
     

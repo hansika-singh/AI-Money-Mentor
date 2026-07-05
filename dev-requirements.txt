@@ -1,1 +1,6 @@
-pre-commit>=3.0.0
+# dev-requirements.txt
+# Dependencies for Git hooks (husky + commitlint via npm).
+# These are NOT Python packages - install with: npm install
+#
+# The husky hook is configured in package.json "prepare" script.
+# commitlint is configured in commitlint.config.js.

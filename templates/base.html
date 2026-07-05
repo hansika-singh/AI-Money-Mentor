@@ -34,7 +34,17 @@
       ☀️ Light Mode
     </button>
 
+    {% if current_user.is_authenticated %}
+    <div style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border);">
+      <div style="font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase;">Points Balance</div>
+      <div style="font-size: 13px; color: var(--gold2); margin-top: 2px; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+        <span>🏆</span> <span id="sidebar-user-points">{{ current_user.points or 0 }}</span> Pts
+      </div>
+    </div>
+    {% endif %}
+
     <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}"><span class="icon">🏠</span> Dashboard</a>
+    <a href="/learn" class="nav-item {% if active_page == 'learn' %}active{% endif %}"><span class="icon">🎓</span> Learn & Earn</a>
     <a href="/milestones" class="nav-item {% if active_page == 'milestones' %}active{% endif %}"><span class="icon">🔔</span> Milestones</a>
     <a href="/chat" class="nav-item {% if active_page == 'chat' %}active{% endif %}"><span class="icon">🤖</span> AI Chat</a>
     <a href="/money-score" class="nav-item {% if active_page == 'score' %}active{% endif %}"><span class="icon">💰</span> Money Score</a>
@@ -42,12 +52,14 @@
     <a href="/goal-planner" class="nav-item {% if active_page == 'goal_planner' %}active{% endif %}"><span class="icon">🎯</span> Goal Planner</a>
     <a href="/stock" class="nav-item {% if active_page == 'stock' %}active{% endif %}"><span class="icon">📊</span> Stock Check</a>
     <a href="/tax" class="nav-item {% if active_page == 'tax' %}active{% endif %}"><span class="icon">💸</span> Tax Planner</a>
+    <a href="/insurance" class="nav-item {% if active_page == 'insurance' %}active{% endif %}"><span class="icon">🛡️</span> Insurance Plan</a>
     <a href="/pdf-parser" class="nav-item {% if active_page == 'pdf' %}active{% endif %}"><span class="icon">📄</span> PDF Parser</a>
     <a href="/agent-page" class="nav-item {% if active_page == 'agent' %}active{% endif %}"><span class="icon">🧠</span> Multi Agent</a>
     <a href="/expense" class="nav-item {% if active_page == 'expense' %}active{% endif %}"><span class="icon">💲</span>Expense Track</a>
     <a href="/group-expenses" class="nav-item {% if active_page == 'group-expenses' %}active{% endif %}"><span class="icon">👥</span>Group Expenses</a>
     <a href="/networth" class="nav-item {% if active_page == 'networth' %}active{% endif %}"><span class="icon">💎</span> Net Worth</a>
     <a href="/portfolio-page" class="nav-item {% if active_page == 'portfolio' %}active{% endif %}"><span class="icon">💼</span> Portfolio</a>
+    <a href="/crypto-page" class="nav-item {% if active_page == 'crypto' %}active{% endif %}"><span class="icon">🪙</span> Crypto & DeFi</a>
     <a href="/goals" class="nav-item {% if active_page == 'goals' %}active{% endif %}"><span class="icon">🎯</span> Financial Goals</a>
     <a href="/budget" class="nav-item {% if active_page == 'budget' %}active{% endif %}"><span class="icon">📊</span> Smart Budget</a>
     <a href="/recurring" class="nav-item {% if active_page == 'recurring' %}active{% endif %}"><span class="icon">📅</span> Recurring Expenses</a>

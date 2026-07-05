@@ -1,0 +1,1044 @@
+{% extends 'base.html' %}
+
+{% block title %}Gamified Learning Hub{% endblock %}
+
+{% block head %}
+<style>
+  .learn-header {
+    background: linear-gradient(135deg, rgba(212, 168, 67, 0.15) 0%, rgba(20, 200, 191, 0.05) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+  }
+
+  .profile-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .avatar-ring {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, var(--gold), var(--teal));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 0 15px rgba(212, 168, 67, 0.3);
+  }
+
+  .user-stats {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .user-rank {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text);
+  }
+
+  .points-badge {
+    background: rgba(212, 168, 67, 0.2);
+    border: 1px solid var(--gold);
+    color: var(--gold2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    width: fit-content;
+  }
+
+  .badges-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge-item {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .badge-item:hover {
+    transform: translateY(-4px) scale(1.1);
+    border-color: var(--gold);
+    box-shadow: 0 0 10px var(--glow);
+  }
+
+  .badge-item .tooltip {
+    visibility: hidden;
+    background-color: var(--bg2);
+    color: var(--text);
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    position: absolute;
+    z-index: 10;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 11px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  .badge-item:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .tab-nav {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .tab-btn.active {
+    color: var(--gold2);
+    background: rgba(212, 168, 67, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(212, 168, 67, 0.2);
+  }
+
+  .tab-content {
+    display: none;
+  }
+
+  .tab-content.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .education-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .edu-card {
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+  }
+
+  .edu-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3), 0 0 15px rgba(20, 200, 191, 0.05);
+    border-color: rgba(20, 200, 191, 0.3);
+  }
+
+  .edu-card .card-category {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--teal);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .edu-card .card-points {
+    font-size: 12px;
+    color: var(--gold2);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  .edu-card .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Reader and Quiz Overlays */
+  .overlay-container {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(7, 11, 18, 0.85);
+    backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .overlay-container.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  .overlay-content {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 750px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+    overflow: hidden;
+  }
+
+  .overlay-container.active .overlay-content {
+    transform: scale(1);
+  }
+
+  .overlay-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .overlay-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .close-btn:hover {
+    color: var(--text);
+  }
+
+  .overlay-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .overlay-body h3 {
+    font-family: 'Syne', sans-serif;
+    color: var(--gold2);
+    margin-bottom: 12px;
+    margin-top: 16px;
+  }
+
+  .overlay-body h4 {
+    color: var(--teal);
+    margin-bottom: 8px;
+    margin-top: 14px;
+  }
+
+  .overlay-body p {
+    margin-bottom: 14px;
+  }
+
+  .overlay-body ul {
+    margin-bottom: 14px;
+    padding-left: 20px;
+  }
+
+  .overlay-body li {
+    margin-bottom: 6px;
+  }
+
+  .overlay-footer {
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  /* Quiz Slide Styles */
+  .quiz-progress-bar {
+    height: 6px;
+    background: var(--bg3);
+    border-radius: 3px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .quiz-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--teal));
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  .option-btn {
+    display: block;
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 14px 18px;
+    border-radius: 10px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .option-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--teal);
+  }
+
+  .option-btn.selected {
+    background: rgba(20, 200, 191, 0.1);
+    border-color: var(--teal);
+    box-shadow: 0 0 10px rgba(20, 200, 191, 0.2);
+  }
+
+  /* Quiz Results and Feedback */
+  .feedback-card {
+    background: rgba(255,255,255,0.01);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .feedback-card.correct {
+    border-color: rgba(46, 204, 138, 0.3);
+    background: rgba(46, 204, 138, 0.02);
+  }
+
+  .feedback-card.incorrect {
+    border-color: rgba(224, 82, 82, 0.3);
+    background: rgba(224, 82, 82, 0.02);
+  }
+
+  .explanation-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--bg3);
+    border-left: 3px solid var(--gold);
+    border-radius: 0 6px 6px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Challenge List Styles */
+  .challenge-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    transition: all 0.3s ease;
+  }
+
+  .challenge-item:hover {
+    border-color: rgba(212, 168, 67, 0.2);
+    transform: translateX(4px);
+  }
+
+  .challenge-info {
+    flex: 1;
+    min-width: 250px;
+  }
+
+  .challenge-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .challenge-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .challenge-progress-container {
+    width: 200px;
+    min-width: 150px;
+  }
+
+  .challenge-progress-bar {
+    height: 8px;
+    background: var(--bg3);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+
+  .challenge-progress-fill {
+    height: 100%;
+    background: var(--teal);
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  .challenge-progress-text {
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .challenge-reward {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .points-popup {
+    position: fixed;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--gold);
+    pointer-events: none;
+    z-index: 2000;
+    animation: floatUpAndFade 1.2s ease-out forwards;
+    text-shadow: 0 0 10px rgba(212, 168, 67, 0.5);
+  }
+
+  @keyframes floatUpAndFade {
+    0% { opacity: 0; transform: translateY(0) scale(0.8); }
+    20% { opacity: 1; transform: translateY(-20px) scale(1.1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="learn" class="page active">
+  <div class="page-title">🎓 Learn & <span>Earn</span></div>
+
+  <!-- Profile & Badges Header -->
+  <div class="learn-header">
+    <div class="profile-section">
+      <div class="avatar-ring" id="userAvatar">👨‍🎓</div>
+      <div class="user-stats">
+        <div class="user-rank" id="userRank">Financial Apprentice</div>
+        <div class="points-badge">
+          <span>🏆</span> <span id="userPoints">0</span> Pts
+        </div>
+      </div>
+    </div>
+    
+    <div>
+      <div style="font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; text-transform: uppercase;">Unlocked Badges</div>
+      <div class="badges-container" id="unlockedBadges">
+        <!-- Rendered dynamically -->
+        <span class="text-muted" style="font-size: 13px;">No achievements unlocked yet.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tutorials')">📖 Tutorials</button>
+    <button class="tab-btn" onclick="switchTab('quizzes')">🧠 Quizzes</button>
+    <button class="tab-btn" onclick="switchTab('challenges')">🎯 Challenges</button>
+  </div>
+
+  <!-- TUTORIALS TAB -->
+  <div id="tab-tutorials" class="tab-content active">
+    <div class="education-grid" id="tutorialsGrid">
+      <!-- Loaded dynamically -->
+    </div>
+  </div>
+
+  <!-- QUIZZES TAB -->
+  <div id="tab-quizzes" class="tab-content">
+    <div class="education-grid" id="quizzesGrid">
+      <!-- Loaded dynamically -->
+    </div>
+  </div>
+
+  <!-- CHALLENGES TAB -->
+  <div id="tab-challenges" class="tab-content">
+    <div id="challengesList">
+      <!-- Loaded dynamically -->
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TUTORIAL READER MODAL ==================== -->
+<div id="tutorialModal" class="overlay-container">
+  <div class="overlay-content">
+    <div class="overlay-header">
+      <div class="overlay-title" id="modalTutorialTitle">Tutorial Title</div>
+      <button class="close-btn" onclick="closeTutorial()">&times;</button>
+    </div>
+    <div class="overlay-body" id="modalTutorialBody">
+      <!-- Content parsed by marked -->
+    </div>
+    <div class="overlay-footer">
+      <button class="btn btn-ghost" onclick="closeTutorial()">Close</button>
+      <button class="btn btn-gold" id="btnCompleteTutorial" onclick="completeTutorialAction()">Mark as Completed (+15 Pts)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== QUIZ SLIDER MODAL ==================== -->
+<div id="quizModal" class="overlay-container">
+  <div class="overlay-content">
+    <!-- Active Quiz View -->
+    <div id="quizActiveView" style="display: flex; flex-direction: column; height: 100%;">
+      <div class="overlay-header">
+        <div class="overlay-title" id="quizModalTitle">Quiz Title</div>
+        <button class="close-btn" onclick="closeQuiz()">&times;</button>
+      </div>
+      <div class="overlay-body">
+        <div class="quiz-progress-bar">
+          <div class="quiz-progress-fill" id="quizProgressFill"></div>
+        </div>
+        <div id="quizQuestionNum" style="font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; margin-bottom: 6px;">Question 1 of 3</div>
+        <div id="quizQuestionText" style="font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 20px;">Question Content</div>
+        
+        <div id="quizOptionsContainer">
+          <!-- Option buttons loaded dynamically -->
+        </div>
+      </div>
+      <div class="overlay-footer">
+        <button class="btn btn-ghost" onclick="closeQuiz()">Quit</button>
+        <button class="btn btn-gold" id="btnNextQuestion" onclick="nextQuizQuestion()" disabled>Next Question &rarr;</button>
+      </div>
+    </div>
+
+    <!-- Quiz Results View -->
+    <div id="quizResultsView" style="display: none; flex-direction: column; height: 100%;">
+      <div class="overlay-header">
+        <div class="overlay-title">Quiz Results</div>
+        <button class="close-btn" onclick="closeQuiz()">&times;</button>
+      </div>
+      <div class="overlay-body">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="font-size: 48px;" id="resultsIcon">🎉</div>
+          <div style="font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; margin-top: 8px;" id="resultsScoreText">You scored 3/3!</div>
+          <div style="font-size: 14px; color: var(--gold2); font-weight: 600; margin-top: 4px;" id="resultsPointsEarned">+30 Points Awarded</div>
+        </div>
+        
+        <div style="font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">Review Answers</div>
+        <div id="quizResultsDetails">
+          <!-- Question feedback items loaded dynamically -->
+        </div>
+      </div>
+      <div class="overlay-footer">
+        <button class="btn btn-gold" onclick="closeQuiz()">Finish & Return</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentTutorialId = null;
+  let activeQuizId = null;
+  let quizQuestions = [];
+  let currentQuestionIndex = 0;
+  let quizAnswers = {}; // map of questionId -> selectedOption
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    // Initial fetch to load stats and lists
+    await refreshAll();
+  });
+
+  async function refreshAll() {
+    await loadStats();
+    await loadTutorials();
+    await loadQuizzes();
+    await loadChallenges();
+  }
+
+  // Calculate Rank name based on points
+  function getRank(pts) {
+    if (pts < 100) return "Financial Apprentice";
+    if (pts < 300) return "Smart Saver";
+    if (pts < 600) return "Investing Scholar";
+    return "Wealth Mentor";
+  }
+
+  // Calculate Avatar based on points
+  function getAvatar(pts) {
+    if (pts < 100) return "👨‍🎓";
+    if (pts < 300) return "🌱";
+    if (pts < 600) return "📈";
+    return "👑";
+  }
+
+  async function loadStats() {
+    try {
+      // Points will be refreshed from challenges / tutorials dynamically, but achievements are best fetched via achievements api
+      const response = await fetch("/api/achievements");
+      const data = await response.json();
+      
+      const badgeContainer = document.getElementById("unlockedBadges");
+      if (data.achievements && data.achievements.length > 0) {
+        badgeContainer.innerHTML = data.achievements.map(ach => `
+          <div class="badge-item">
+            <span>${ach.icon}</span>
+            <div class="tooltip">
+              <strong>${ach.title}</strong><br>
+              ${ach.desc}
+            </div>
+          </div>
+        `).join('');
+      } else {
+        badgeContainer.innerHTML = `<span class="text-muted" style="font-size:13px;">No achievements unlocked yet. Keep tracking!</span>`;
+      }
+    } catch (e) {
+      console.error("Failed to load achievements: ", e);
+    }
+  }
+
+  function triggerPointsPopup(e, points) {
+    const popup = document.createElement("div");
+    popup.className = "points-popup";
+    popup.innerText = `+${points} PTS`;
+    
+    // Position near the button click event if available, otherwise center
+    if (e && e.clientX) {
+      popup.style.left = `${e.clientX - 30}px`;
+      popup.style.top = `${e.clientY - 20}px`;
+    } else {
+      popup.style.left = "50%";
+      popup.style.top = "50%";
+      popup.style.transform = "translate(-50%, -50%)";
+    }
+    
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 1200);
+  }
+
+  function updateGlobalPoints(totalPoints) {
+    document.getElementById("userPoints").innerText = totalPoints;
+    document.getElementById("userRank").innerText = getRank(totalPoints);
+    document.getElementById("userAvatar").innerText = getAvatar(totalPoints);
+    
+    // Update sidebar counter
+    const sidebarPoints = document.getElementById("sidebar-user-points");
+    if (sidebarPoints) {
+      sidebarPoints.innerText = totalPoints;
+    }
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+    
+    // Find matching button and activate
+    event.currentTarget.classList.add("active");
+    document.getElementById(`tab-${tabId}`).classList.add("active");
+  }
+
+  // ==================== TUTORIALS LOGIC ====================
+  async function loadTutorials() {
+    try {
+      const response = await fetch("/api/tutorials");
+      const data = await response.json();
+      
+      const grid = document.getElementById("tutorialsGrid");
+      if (!data.tutorials || data.tutorials.length === 0) {
+        grid.innerHTML = `<p class="text-muted">No tutorials available.</p>`;
+        return;
+      }
+
+      grid.innerHTML = data.tutorials.map(t => `
+        <div class="card edu-card">
+          <div>
+            <div class="card-category">${t.category}</div>
+            <div class="card-title">${t.title}</div>
+            <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">${t.description}</p>
+            <div class="card-points">🪙 ${t.points_reward} Points</div>
+          </div>
+          <div class="card-footer">
+            <span style="font-size: 12px; font-weight: 600; color: ${t.completed ? 'var(--green)' : 'var(--muted)'}">
+              ${t.completed ? '✅ Completed' : '📖 Unread'}
+            </span>
+            <button class="btn btn-sm ${t.completed ? 'btn-ghost' : 'btn-gold'}" onclick="openTutorial(${t.id}, '${t.title.replace(/'/g, "\\'")}', \`${t.content.replace(/`/g, "\\`").replace(/\$/g, "\\$")}\`, ${t.completed})">
+              ${t.completed ? 'Review' : 'Read Lesson'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error("Error loading tutorials:", e);
+    }
+  }
+
+  function openTutorial(id, title, content, completed) {
+    currentTutorialId = id;
+    document.getElementById("modalTutorialTitle").innerText = title;
+    
+    // Parse Markdown using marked
+    document.getElementById("modalTutorialBody").innerHTML = marked.parse(content);
+    
+    const btn = document.getElementById("btnCompleteTutorial");
+    if (completed) {
+      btn.innerText = "Completed";
+      btn.disabled = true;
+      btn.className = "btn btn-ghost";
+    } else {
+      btn.innerText = "Mark as Completed (+15 Pts)";
+      btn.disabled = false;
+      btn.className = "btn btn-gold";
+    }
+    
+    const modal = document.getElementById("tutorialModal");
+    modal.classList.add("active");
+  }
+
+  function closeTutorial() {
+    document.getElementById("tutorialModal").classList.remove("active");
+    currentTutorialId = null;
+  }
+
+  async function completeTutorialAction() {
+    if (!currentTutorialId) return;
+    try {
+      const response = await fetch(`/api/tutorials/${currentTutorialId}/complete`, { method: "POST" });
+      const data = await response.json();
+      
+      if (data.success) {
+        if (data.points_awarded > 0) {
+          triggerPointsPopup(event, data.points_awarded);
+        }
+        updateGlobalPoints(data.total_points);
+        closeTutorial();
+        await refreshAll();
+      }
+    } catch (e) {
+      console.error("Failed to complete tutorial:", e);
+    }
+  }
+
+  // ==================== QUIZZES LOGIC ====================
+  async function loadQuizzes() {
+    try {
+      const response = await fetch("/api/quizzes");
+      const data = await response.json();
+      
+      const grid = document.getElementById("quizzesGrid");
+      if (!data.quizzes || data.quizzes.length === 0) {
+        grid.innerHTML = `<p class="text-muted">No quizzes available.</p>`;
+        return;
+      }
+
+      grid.innerHTML = data.quizzes.map(q => {
+        const attempted = q.high_score !== null;
+        return `
+          <div class="card edu-card">
+            <div>
+              <div class="card-category">Quiz (${q.total_questions} Questions)</div>
+              <div class="card-title">${q.title}</div>
+              <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">${q.description}</p>
+              <div class="card-points">🪙 +${q.points_reward} Max + Attempt Bonus</div>
+            </div>
+            <div class="card-footer">
+              <span style="font-size: 12px; font-weight: 600; color: ${attempted ? 'var(--gold2)' : 'var(--muted)'}">
+                ${attempted ? `🎯 High Score: ${q.high_score}%` : '🌱 Not Started'}
+              </span>
+              <button class="btn btn-sm ${attempted ? 'btn-ghost' : 'btn-gold'}" onclick="startQuiz(${q.id}, '${q.title.replace(/'/g, "\\'")}')">
+                ${attempted ? 'Retake Quiz' : 'Take Quiz'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error("Error loading quizzes:", e);
+    }
+  }
+
+  async function startQuiz(quizId, quizTitle) {
+    try {
+      activeQuizId = quizId;
+      const response = await fetch(`/api/quizzes/${quizId}/questions`);
+      const data = await response.json();
+      
+      quizQuestions = data.questions;
+      currentQuestionIndex = 0;
+      quizAnswers = {};
+      
+      document.getElementById("quizModalTitle").innerText = quizTitle;
+      document.getElementById("quizActiveView").style.display = "flex";
+      document.getElementById("quizResultsView").style.display = "none";
+      
+      loadQuizQuestion();
+      
+      const modal = document.getElementById("quizModal");
+      modal.classList.add("active");
+    } catch (e) {
+      console.error("Failed to start quiz:", e);
+    }
+  }
+
+  function loadQuizQuestion() {
+    if (currentQuestionIndex >= quizQuestions.length) return;
+    
+    const question = quizQuestions[currentQuestionIndex];
+    document.getElementById("quizQuestionNum").innerText = `Question ${currentQuestionIndex + 1} of ${quizQuestions.length}`;
+    document.getElementById("quizQuestionText").innerText = question.question_text;
+    
+    const pct = ((currentQuestionIndex) / quizQuestions.length) * 100;
+    document.getElementById("quizProgressFill").style.width = `${pct}%`;
+    
+    const container = document.getElementById("quizOptionsContainer");
+    container.innerHTML = `
+      <button class="option-btn" id="opt-A" onclick="selectOption('A')"><strong>A.</strong> ${question.option_a}</button>
+      <button class="option-btn" id="opt-B" onclick="selectOption('B')"><strong>B.</strong> ${question.option_b}</button>
+      <button class="option-btn" id="opt-C" onclick="selectOption('C')"><strong>C.</strong> ${question.option_c}</button>
+      <button class="option-btn" id="opt-D" onclick="selectOption('D')"><strong>D.</strong> ${question.option_d}</button>
+    `;
+    
+    const nextBtn = document.getElementById("btnNextQuestion");
+    if (currentQuestionIndex === quizQuestions.length - 1) {
+      nextBtn.innerText = "Submit Quiz";
+    } else {
+      nextBtn.innerText = "Next Question \u2192";
+    }
+    nextBtn.disabled = true;
+  }
+
+  function selectOption(opt) {
+    const q = quizQuestions[currentQuestionIndex];
+    quizAnswers[q.id] = opt;
+    
+    document.querySelectorAll(".option-btn").forEach(btn => btn.classList.remove("selected"));
+    document.getElementById(`opt-${opt}`).classList.add("selected");
+    
+    document.getElementById("btnNextQuestion").disabled = false;
+  }
+
+  async function nextQuizQuestion() {
+    if (currentQuestionIndex < quizQuestions.length - 1) {
+      currentQuestionIndex++;
+      loadQuizQuestion();
+    } else {
+      await submitQuizAction();
+    }
+  }
+
+  async function submitQuizAction() {
+    try {
+      const response = await fetch(`/api/quizzes/${activeQuizId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: quizAnswers })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        document.getElementById("quizProgressFill").style.width = `100%`;
+        document.getElementById("quizActiveView").style.display = "none";
+        document.getElementById("quizResultsView").style.display = "flex";
+        
+        // Populate results summary
+        const pct = Math.round((data.score / data.total_questions) * 100);
+        document.getElementById("resultsScoreText").innerText = `You scored ${data.score}/${data.total_questions} (${pct}%)`;
+        document.getElementById("resultsPointsEarned").innerText = `+${data.points_awarded} Points Earned`;
+        
+        if (pct === 100) {
+          document.getElementById("resultsIcon").innerText = "🏆";
+        } else if (pct >= 50) {
+          document.getElementById("resultsIcon").innerText = "🎉";
+        } else {
+          document.getElementById("resultsIcon").innerText = "📚";
+        }
+        
+        triggerPointsPopup(null, data.points_awarded);
+        updateGlobalPoints(data.total_points);
+        
+        // Detailed feedback
+        const detailsContainer = document.getElementById("quizResultsDetails");
+        detailsContainer.innerHTML = data.details.map(d => `
+          <div class="feedback-card ${d.is_correct ? 'correct' : 'incorrect'}">
+            <div style="font-weight: 700; font-size: 14px;">
+              ${d.is_correct ? '✅' : '❌'} ${d.question_text}
+            </div>
+            
+            <div style="font-size: 13px; margin-top: 8px; display: grid; gap: 4px;">
+              <div style="color: ${d.user_answer === 'A' ? (d.is_correct ? 'var(--green)' : 'var(--red)') : (d.correct_option === 'A' ? 'var(--green)' : 'inherit')}">
+                <strong>A.</strong> ${d.options.A} ${d.user_answer === 'A' ? '(Your Answer)' : ''} ${d.correct_option === 'A' ? '(Correct)' : ''}
+              </div>
+              <div style="color: ${d.user_answer === 'B' ? (d.is_correct ? 'var(--green)' : 'var(--red)') : (d.correct_option === 'B' ? 'var(--green)' : 'inherit')}">
+                <strong>B.</strong> ${d.options.B} ${d.user_answer === 'B' ? '(Your Answer)' : ''} ${d.correct_option === 'B' ? '(Correct)' : ''}
+              </div>
+              <div style="color: ${d.user_answer === 'C' ? (d.is_correct ? 'var(--green)' : 'var(--red)') : (d.correct_option === 'C' ? 'var(--green)' : 'inherit')}">
+                <strong>C.</strong> ${d.options.C} ${d.user_answer === 'C' ? '(Your Answer)' : ''} ${d.correct_option === 'C' ? '(Correct)' : ''}
+              </div>
+              <div style="color: ${d.user_answer === 'D' ? (d.is_correct ? 'var(--green)' : 'var(--red)') : (d.correct_option === 'D' ? 'var(--green)' : 'inherit')}">
+                <strong>D.</strong> ${d.options.D} ${d.user_answer === 'D' ? '(Your Answer)' : ''} ${d.correct_option === 'D' ? '(Correct)' : ''}
+              </div>
+            </div>
+            
+            <div class="explanation-box">
+              <strong>Explanation:</strong> ${d.explanation || 'No explanation provided.'}
+            </div>
+          </div>
+        `).join('');
+        
+        await refreshAll();
+      }
+    } catch (e) {
+      console.error("Quiz submission error:", e);
+    }
+  }
+
+  function closeQuiz() {
+    document.getElementById("quizModal").classList.remove("active");
+    activeQuizId = null;
+    quizQuestions = [];
+    quizAnswers = {};
+  }
+
+  // ==================== CHALLENGES LOGIC ====================
+  async function loadChallenges() {
+    try {
+      const response = await fetch("/api/challenges");
+      const data = await response.json();
+      
+      // Update points and rank again in case streak challenge got solved
+      updateGlobalPoints(data.total_points);
+      
+      const container = document.getElementById("challengesList");
+      if (!data.challenges || data.challenges.length === 0) {
+        container.innerHTML = `<p class="text-muted">No challenges available.</p>`;
+        return;
+      }
+      
+      // Notify user about newly completed challenges if any
+      if (data.newly_completed && data.newly_completed.length > 0) {
+        data.newly_completed.forEach(ch => {
+          alert(`🏆 Challenge Completed: ${ch === 'expense_streak_7' ? 'Consistent Tracker' : (ch === 'portfolio_builder_2' ? 'Portfolio Builder' : 'Goal Setter')}! Points added!`);
+        });
+      }
+
+      container.innerHTML = data.challenges.map(ch => {
+        const pct = (ch.progress / ch.target) * 100;
+        let progressLabel = "";
+        
+        if (ch.key === "expense_streak_7") {
+          progressLabel = `${ch.progress} / ${ch.target} Days streak`;
+        } else if (ch.key === "portfolio_builder_2") {
+          progressLabel = `${ch.progress} / ${ch.target} Investments`;
+        } else {
+          progressLabel = `₹${fmtNum(ch.progress)} / ₹${fmtNum(ch.target)}`;
+        }
+        
+        return `
+          <div class="challenge-item">
+            <div class="challenge-info">
+              <div class="challenge-title">
+                <span>${ch.completed ? '🏆' : '🎯'}</span>
+                <span>${ch.title}</span>
+              </div>
+              <div class="challenge-desc">${ch.description}</div>
+            </div>
+            
+            <div class="challenge-progress-container">
+              <div class="challenge-progress-text">
+                <span>Progress</span>
+                <span>${progressLabel}</span>
+              </div>
+              <div class="challenge-progress-bar">
+                <div class="challenge-progress-fill" style="width: ${pct}%; background: ${ch.completed ? 'var(--green)' : 'var(--teal)'}"></div>
+              </div>
+            </div>
+            
+            <div class="challenge-reward">
+              <span class="points-badge" style="background: ${ch.completed ? 'rgba(46, 204, 138, 0.15)' : 'rgba(212, 168, 67, 0.15)'}; border-color: ${ch.completed ? 'var(--green)' : 'var(--gold)'}; color: ${ch.completed ? 'var(--green)' : 'var(--gold2)'}">
+                🪙 ${ch.points_reward} Pts
+              </span>
+              <span style="font-size: 11px; font-weight: 600; color: ${ch.completed ? 'var(--green)' : 'var(--muted)'}">
+                ${ch.completed ? 'Completed' : 'In Progress'}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error("Error loading challenges:", e);
+    }
+  }
+</script>
+{% endblock %}

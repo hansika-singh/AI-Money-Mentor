@@ -255,6 +255,29 @@ Remember: You're the generalist - help with basic finance but defer to specialis
 )
 
 
+PORTFOLIO_AGENT = FinancialAgent(
+    name="Portfolio Manager",
+    specialization="Portfolio Optimization & Asset Allocation",
+    system_prompt="""You are a specialized Portfolio Manager.
+
+Your expertise includes:
+- Asset allocation strategies (Strategic & Tactical)
+- Portfolio rebalancing (threshold and periodic)
+- Risk-return optimization (Modern Portfolio Theory)
+- Diversification across asset classes (Equity, Debt, Gold, Cash)
+- Evaluating portfolio performance metrics
+
+Guidelines:
+1. Always analyze current vs target asset allocation
+2. Suggest specific rebalancing steps
+3. Explain risk-return tradeoffs
+4. Maintain a long-term investment discipline
+
+Remember: You are a portfolio management expert - provide professional, risk-aligned asset allocation advice.""",
+    keywords=["portfolio", "allocation", "asset allocation", "rebalance", "diversification", "optimization", "risk-return"]
+)
+
+
 class ChiefPlanner:
     """
     Chief Planner - Orchestrates all agents with intelligent task breakdown
@@ -268,12 +291,13 @@ class ChiefPlanner:
             'debt': DEBT_AGENT,
             'retirement': RETIREMENT_AGENT,
             'insurance': INSURANCE_AGENT,
+            'portfolio': PORTFOLIO_AGENT,
             'general': GENERAL_AGENT
         }
         self.agent_list = list(self.agents.values())
         self.conversation_history = []
         self.cross_agent_context = {}
-        self.agent_priority = ['tax', 'investment', 'retirement', 'insurance', 'debt', 'general']
+        self.agent_priority = ['tax', 'investment', 'portfolio', 'retirement', 'insurance', 'debt', 'general']
     
     def analyze_query(self, query: str) -> Dict[str, Any]:
         """Analyze query and identify which agents to consult"""
@@ -333,6 +357,8 @@ class ChiefPlanner:
             domains.append('retirement')
         if any(k in query_lower for k in INSURANCE_AGENT.keywords):
             domains.append('insurance')
+        if any(k in query_lower for k in PORTFOLIO_AGENT.keywords):
+            domains.append('portfolio')
         
         if not domains:
             domains = ['general']
@@ -346,8 +372,8 @@ class ChiefPlanner:
         
         return sorted(subtasks, key=lambda x: x['priority'])
     
-    def synthesize_response(self, results: List[Dict]) -> Dict[str, Any]:
-        """Synthesize responses from multiple agents"""
+    def synthesize_response(self, query: str, results: List[Dict]) -> Dict[str, Any]:
+        """Synthesize responses from multiple agents into a cohesive master plan"""
         if not results:
             return {
                 'response': "I couldn't process your query. Please try again.",
@@ -355,40 +381,32 @@ class ChiefPlanner:
                 'confidence': 0
             }
         
-        # If only one agent, return its response directly
-        if len(results) == 1:
-            return {
-                'response': results[0].get('response', ''),
-                'summary': results[0].get('response', '')[:200],
-                'confidence': results[0].get('confidence', 0.7),
-                'agents_consulted': [results[0].get('agent', '')]
-            }
-        
         # Build synthesis prompt
         synthesis_prompt = f"""
-        You are the Chief Financial Planner. Synthesize these expert responses into a comprehensive answer.
+You are the Chief Financial Planner. Synthesize the step-by-step collaborative analysis of your specialized agents into a cohesive, structured master plan.
 
-        User Query: {results[0].get('query', '') if results else ''}
+User Query: {query}
 
-        Expert Responses:
-        """
-        
-        for i, result in enumerate(results):
+Collaborative Steps:
+"""
+        for idx, step in enumerate(results):
             synthesis_prompt += f"""
-            --- {result.get('agent', 'Expert')} ({result.get('specialization', '')}) ---
-            {result.get('response', 'No response')}
-            Confidence: {result.get('confidence', 0.5)}
-            """
+Step {idx + 1}: {step.get('timeline_point', 'Analysis')}
+Agent: {step.get('agent_name', 'Advisor')} ({step.get('specialization', '')})
+Subtask: {step.get('sub_task', '')}
+Response:
+{step.get('response', 'No response')}
+"""
         
         synthesis_prompt += """
-        Provide a comprehensive synthesis that:
-        1. Executive Summary (2-3 key takeaways)
-        2. Detailed analysis from each expert
-        3. Actionable next steps
-        4. Confidence assessment
+Provide a cohesive, unified master plan. It must include:
+1. Executive Summary (2-3 sentences presenting the overall strategy)
+2. Cohesive Timeline / Step-by-Step execution flow
+3. Consolidated financial recommendations (key numbers, targets, and milestones)
+4. Critical next steps for the user to take action
 
-        Make it coherent and easy to understand. Use bullet points for clarity.
-        """
+Ensure the plan flows logically and integrates all the agents' advice. Use markdown for styling and bullet points for readability.
+"""
         
         try:
             response = self.client.chat.completions.create(
@@ -398,7 +416,7 @@ class ChiefPlanner:
                     {"role": "user", "content": synthesis_prompt}
                 ],
                 temperature=0.7,
-                max_tokens=800
+                max_tokens=2000
             )
             
             synthesized = response.choices[0].message.content
@@ -406,8 +424,8 @@ class ChiefPlanner:
             return {
                 'response': synthesized,
                 'summary': synthesized.split('\n')[0] if synthesized else '',
-                'confidence': 0.85,
-                'agents_consulted': [r.get('agent', '') for r in results],
+                'confidence': 0.9,
+                'agents_consulted': [r.get('agent_name', '') for r in results],
                 'full_response': synthesized
             }
         except Exception as e:
@@ -420,38 +438,121 @@ class ChiefPlanner:
     
     def process_query(self, query: str, chat_history: List = None) -> Dict:
         """
-        Main entry point: Process query through multi-agent system
+        Main entry point: Process query through multi-agent system with sequential collaboration plan
         """
         try:
-            # Step 1: Analyze query
-            analysis = self.analyze_query(query)
-            
-            # Step 2: Break down into subtasks
-            subtasks = self.break_down_query(query)
-            
-            # Step 3: Execute subtasks
+            # Step 1: Request collaborative plan sequence from LLM
+            planning_prompt = f"""
+Analyze the user's financial query: "{query}"
+
+Design a collaborative, sequential multi-agent execution plan.
+You have access to these specialized agents:
+- 'investment': Investment Advisor (SIPs, stocks, mutual funds, savings goals, wealth creation)
+- 'debt': Debt Management Expert (loans, mortgages, EMI calculation, debt reduction)
+- 'tax': Tax Advisor (tax planning, deductions under 80C/80D, capital gains, tax benefits)
+- 'retirement': Retirement Planner (corpus calculation, NPS, PPF, pensions)
+- 'insurance': Insurance Advisor (life, health, term plans, coverage gap analysis)
+- 'portfolio': Portfolio Manager (portfolio allocation, rebalancing, diversification)
+- 'general': General Financial Advisor (budgeting, emergency funds, basic finance)
+
+Create a logical sequence of agent consultations to address the query. Each step MUST build on the previous steps' outputs (e.g. Investment Agent calculates savings -> Debt Agent uses savings for mortgage affordability -> Tax Agent analyzes tax benefits of the mortgage).
+
+Output ONLY a JSON array of steps. Do NOT wrap the JSON in ```json ... ``` blocks, do NOT add any markdown formatting, and do NOT include any commentary. Just return the raw JSON string.
+
+Each step in the JSON array must have:
+1. "agent_key": The string key of the agent (one of: 'investment', 'debt', 'tax', 'retirement', 'insurance', 'portfolio', 'general')
+2. "sub_task": A specific, clear prompt/question telling this agent what to analyze/calculate as part of the overall plan, building on previous context.
+3. "timeline_point": A short label (2-4 words, e.g., "Down Payment Y1-5" or "Loan & EMI Plan") representing the focus of this step.
+
+Example Output format:
+[
+  {{"agent_key": "investment", "sub_task": "Devise a savings plan to reach down payment...", "timeline_point": "Save Down Payment"}},
+  {{"agent_key": "debt", "sub_task": "Model a home loan based on target price...", "timeline_point": "Home Loan Planning"}},
+  {{"agent_key": "tax", "sub_task": "Analyze tax benefits for home loan principal and interest...", "timeline_point": "Tax Implications"}}
+]
+"""
+            plan_steps = []
+            try:
+                response = self.client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": "You are the Chief Financial Planner planning multi-agent collaboration. Output raw JSON only."},
+                        {"role": "user", "content": planning_prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=1000
+                )
+                raw_plan = response.choices[0].message.content.strip()
+                
+                # Try to extract JSON array using regex if there is surrounding text
+                json_match = re.search(r'\[\s*\{.*\}\s*\]', raw_plan, re.DOTALL)
+                if json_match:
+                    raw_plan = json_match.group(0)
+                
+                plan_steps = json.loads(raw_plan)
+                
+                # Validate structure
+                if not isinstance(plan_steps, list) or not all(isinstance(s, dict) and 'agent_key' in s for s in plan_steps):
+                    raise ValueError("Invalid plan structure")
+            except Exception as e:
+                print("Planning LLM failed or returned invalid JSON. Falling back to keyword-based steps. Error:", e)
+                # Fallback to keyword-based breakdown
+                subtasks = self.break_down_query(query)
+                plan_steps = []
+                for subtask in subtasks:
+                    domain = subtask['domain']
+                    plan_steps.append({
+                        'agent_key': domain,
+                        'sub_task': f"Analyze this query focusing on {self.agents[domain].specialization}.",
+                        'timeline_point': self.agents[domain].name
+                    })
+
+            # Step 2: Execute subtasks sequentially
             results = []
-            for subtask in subtasks:
-                agent_name = subtask['domain']
-                agent = self.agents.get(agent_name, GENERAL_AGENT)
+            for idx, step in enumerate(plan_steps):
+                agent_key = step['agent_key']
+                agent = self.agents.get(agent_key, GENERAL_AGENT)
                 
-                # Get cross-agent context
-                context = self.get_cross_agent_context(agent)
+                # Format previous context
+                context_str = ""
+                if idx > 0:
+                    context_str = "Below is the output from the previous collaborating agents in this chain. Use this context to build your response:\n\n"
+                    for prev_res in results:
+                        context_str += f"=== {prev_res['agent_name']} ({prev_res['specialization']}) ===\n{prev_res['response']}\n\n"
                 
-                # Process with agent
-                result = agent.process_query(query, self.client, context, subtask.get('sub_task', ''))
-                results.append(result)
+                # Execute agent query
+                start_time = time.time()
+                agent_res = agent.process_query(
+                    query=query,
+                    client=self.client,
+                    context=context_str,
+                    sub_task=step['sub_task']
+                )
+                elapsed = time.time() - start_time
                 
-                # Store context
-                self.cross_agent_context[agent.name] = result.get('response', '')[:200]
+                # Store results
+                step_result = {
+                    'agent_key': agent_key,
+                    'agent_name': agent.name,
+                    'specialization': agent.specialization,
+                    'sub_task': step['sub_task'],
+                    'timeline_point': step['timeline_point'],
+                    'response': agent_res.get('response', 'No response'),
+                    'confidence': agent_res.get('confidence', 0.8),
+                    'response_time': round(elapsed, 2)
+                }
+                results.append(step_result)
+                
+                # Store context in ChiefPlanner dictionary (legacy compatibility)
+                self.cross_agent_context[agent.name] = agent_res.get('response', '')[:200]
             
-            # Step 4: Synthesize results
-            synthesized = self.synthesize_response(results)
+            # Step 3: Synthesize results
+            synthesized = self.synthesize_response(query, results)
             
-            # Step 5: Store in history
+            # Step 4: Store in history
             self.conversation_history.append({
                 'query': query,
-                'agents_consulted': [r.get('agent', '') for r in results],
+                'agents_consulted': [r['agent_name'] for r in results],
                 'response': synthesized.get('response', ''),
                 'timestamp': time.time()
             })
@@ -467,8 +568,7 @@ class ChiefPlanner:
                 'summary': synthesized.get('summary', ''),
                 'confidence': synthesized.get('confidence', 0.7),
                 'agents_consulted': synthesized.get('agents_consulted', []),
-                'agent_results': results,
-                'analysis': analysis,
+                'plan_steps': results,
                 'disclaimer': self.get_disclaimer()
             }
             

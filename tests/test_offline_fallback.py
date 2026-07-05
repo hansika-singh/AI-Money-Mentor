@@ -4,38 +4,6 @@ import pytest
 from app import app, db
 import app as app_module
 
-@pytest.fixture
-def offline_client():
-    # Force offline mode by setting client to None temporarily
-    original_client = app_module.client
-    app_module.client = None
-    
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    
-    with app.test_client() as client:
-        with app.app_context():
-            db.create_all()
-            from models import User
-            user = User.query.filter_by(email="test@example.com").first()
-            if not user:
-                user = User(username="testuser", email="test@example.com", password_hash="pbkdf2:sha256:260000$test")
-                db.session.add(user)
-                db.session.commit()
-            user_id = user.id
-            
-        with client.session_transaction() as sess:
-            sess['_user_id'] = str(user_id)
-            sess['_fresh'] = True
-            
-        yield client
-        
-        with app.app_context():
-            db.drop_all()
-            
-    # Restore original client
-    app_module.client = original_client
-
 
 def test_app_starts_offline_without_key():
     """Verify that the global client in app.py behaves correctly based on key presence."""

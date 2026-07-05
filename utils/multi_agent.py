@@ -64,6 +64,9 @@ def route_query(query):
     elif any(word in query for word in ["score", "financial health", "money score"]):
         return "SCORE"
 
+    elif any(word in query for word in ["insurance", "health insurance", "life insurance", "term plan", "policy"]):
+        return "INSURANCE"
+
     else:
         return "AI"
 
@@ -170,6 +173,38 @@ def score_agent(query):
         return "Score error ❌"
 
 
+# ---------------- 🛡️ INSURANCE ----------------
+def insurance_agent(client, query):
+    try:
+        from utils.agents.insurance_agent import InsuranceAgent
+        from flask_login import current_user
+        
+        context = {}
+        if current_user and current_user.is_authenticated:
+            from models import InsuranceRecommendation
+            rec = InsuranceRecommendation.query.filter_by(user_id=current_user.id).first()
+            if rec:
+                context['age'] = rec.age
+                context['dependents'] = rec.family_size
+                context['annual_income'] = rec.annual_income
+                context['liabilities'] = rec.liabilities
+                context['savings'] = rec.savings
+                context['pre_existing'] = rec.pre_existing
+                context['tier'] = rec.tier
+                
+        agent = InsuranceAgent()
+        agent.set_client(client)
+        task = {
+            'query': query,
+            'context': context
+        }
+        res = agent.execute(task)
+        return res['response']
+    except Exception as e:
+        print("INSURANCE AGENT ERROR:", e)
+        return "Insurance Agent error ❌"
+
+
 # ---------------- 🧠 MAIN ----------------
 def run_multi_agent(client, query):
     task = route_query(query)
@@ -177,16 +212,100 @@ def run_multi_agent(client, query):
     print("ROUTED TO:", task)   # ✅ DEBUG
 
     if task == "SIP":
-        return sip_agent(query)
+        res = sip_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'investment',
+                    'agent_name': 'SIP Calculator',
+                    'specialization': 'Investment & Portfolio Management',
+                    'sub_task': 'SIP Future Value Calculation',
+                    'timeline_point': 'SIP Calculation',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Calculated results are based on inputs. Past performance is not indicative of future returns."
+        }
 
     elif task == "TAX":
-        return tax_agent(query)
+        nums = extract_financial_numbers(query)
+        if not nums:
+            # Fallback to ChiefPlanner for general tax planning queries
+            from .multi_agent_system import ChiefPlanner
+            planner = ChiefPlanner(client)
+            return planner.process_query(query)
+            
+        res = tax_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'tax',
+                    'agent_name': 'Tax Calculator',
+                    'specialization': 'Tax Planning & Optimization',
+                    'sub_task': 'Tax Regime Comparison',
+                    'timeline_point': 'Tax Calculation',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Calculated results are based on Indian tax regime provisions. Consult a CA for final decisions."
+        }
 
     elif task == "STOCK":
-        return stock_agent(query)
+        res = stock_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'investment',
+                    'agent_name': 'Stock Agent',
+                    'specialization': 'Investment & Portfolio Management',
+                    'sub_task': 'Stock Price Check',
+                    'timeline_point': 'Stock Price',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Stock prices are fetched from public APIs and may be delayed. Not investment advice."
+        }
 
     elif task == "SCORE":
-        return score_agent(query)
+        res = score_agent(query)
+        return {
+            'success': True,
+            'query': query,
+            'response': res,
+            'plan_steps': [
+                {
+                    'agent_key': 'general',
+                    'agent_name': 'Money Score Agent',
+                    'specialization': 'General Financial Guidance',
+                    'sub_task': 'Financial Health Assessment',
+                    'timeline_point': 'Health Check',
+                    'response': res,
+                    'confidence': 1.0,
+                    'response_time': 0.0
+                }
+            ],
+            'disclaimer': "⚠️ **Disclaimer:** Money score is an automated self-assessment based on user inputs."
+        }
+
+    elif task == "INSURANCE":
+        return insurance_agent(client, query)
 
     else:
-        return ai_agent(client, query)
+        from .multi_agent_system import ChiefPlanner
+        planner = ChiefPlanner(client)
+        return planner.process_query(query)

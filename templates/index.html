@@ -1385,6 +1385,23 @@
 
 
     }
+    @media print {
+      .sidebar, .mobile-header, .header-actions {
+        display: none !important;
+      }
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        page-break-inside: avoid;
+      }
+      .main {
+        padding: 0 !important;
+      }
+    }
   </style>
 </head>
 
@@ -1483,6 +1500,7 @@
         <div class="header-actions">
           <button class="btn btn-gold" onclick="showPage('score', event)">Start Planning</button>
           <button class="btn btn-ghost" onclick="showPage('chat', event)">Review Reports</button>
+          <button class="btn btn-ghost" onclick="window.print()">🖨️ Print Dashboard</button>
         </div>
       </div>
 

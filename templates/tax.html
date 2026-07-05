@@ -141,6 +141,17 @@
     const deduction_80d = document.getElementById('tax80d').value || 0;
     const deduction_hra = document.getElementById('taxHra').value || 0;
 
+    if (parseFloat(income) < 0 || parseFloat(deduction_80c) < 0 || parseFloat(deduction_80d) < 0 || parseFloat(deduction_hra) < 0) {
+      showResult('taxResult', 'Inputs cannot be negative values.');
+      return;
+    }
+    
+    let constraint= parseFloat(income)-parseFloat(deduction_80c)-parseFloat(deduction_80d)-parseFloat(deduction_hra);
+    if (constraint<0){
+      showResult('taxResult', 'Ensure proper inputs. Tax deductions cannot exceed gross income.');
+      return;
+    }
+
     setLoading('taxBtn', true);
     try {
       const data = await apiFetch('/tax', {
