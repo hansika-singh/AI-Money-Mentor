@@ -1313,6 +1313,22 @@
       position: relative;
     }
 
+    .gold-loader {
+  border: 4px solid rgba(212, 168, 67, 0.2);
+  border-top: 4px solid #d4a843;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  animation: spin 1s linear infinite;
+  margin: auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
 
     /* ===== SAFETY INDICATOR ===== */
     .safety-indicator {
@@ -1420,7 +1436,7 @@
   <!-- ══════════ SIDEBAR ══════════ -->
   <div class="sidebar">
     <div class="logo">₹ Money Mentor</div>
-    
+
     <button class="btn btn-ghost" id="themeToggle" onclick="toggleTheme()" 
         style="margin-bottom:15px;width:100%;" 
         aria-label="Toggle light and dark theme">
@@ -1927,6 +1943,13 @@
 
   </div>
 
+  <!-- Loader for AI Chat -->
+<div id="chatLoader" class="gold-loader" style="display:none; margin-top:10px;"></div>
+
+<!-- Loader for Multi-Agent -->
+<div id="agentLoader" class="gold-loader" style="display:none; margin-top:10px;"></div>
+
+
   </div><!-- /main -->
 
   <!-- Loading charts -->
@@ -2060,6 +2083,41 @@
       return new Intl.NumberFormat('en-IN').format(Math.round(n));
     }
 
+    // AI Chat
+async function chatSend() {
+  const input = document.getElementById("chatInput").value;
+  if (!input.trim()) return;
+
+  document.getElementById("chatLoader").style.display = "block"; // show loader
+  document.getElementById("chatBtn").disabled = true;
+
+  try {
+    const data = await apiFetch("/chat", { message: input });
+    // render response...
+  } finally {
+    document.getElementById("chatLoader").style.display = "none"; // hide loader
+    document.getElementById("chatBtn").disabled = false;
+  }
+}
+
+// Multi-Agent
+async function runAgent() {
+  const query = document.getElementById("agentQuery").value;
+  if (!query.trim()) return;
+
+  document.getElementById("agentLoader").style.display = "block"; // show loader
+  document.getElementById("agentBtn").disabled = true;
+
+  try {
+    const data = await apiFetch("/agent", { query });
+    // render response...
+  } finally {
+    document.getElementById("agentLoader").style.display = "none"; // hide loader
+    document.getElementById("agentBtn").disabled = false;
+  }
+}
+
+
     /* ══════════════════════════════════════════════
        DASHBOARD CHAT
     ══════════════════════════════════════════════ */
@@ -2085,44 +2143,6 @@
       const chatWelcome = document.getElementById('chatPageWelcome');
       
       if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-    function appendMsg(boxId, role, text, safety) {
-      const box = document.getElementById(boxId);
-      const dashWelcome = document.getElementById('chatWelcome');
-      const chatWelcome = document.getElementById('chatPageWelcome');
-      
-      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-
-    function appendMsg(boxId, role, text, safety) {
-      const box = document.getElementById(boxId);
-      const dashWelcome = document.getElementById('chatWelcome');
-      const chatWelcome = document.getElementById('chatPageWelcome');
-      
-      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-
-    function appendMsg(boxId, role, text, safety) {
-      const box = document.getElementById(boxId);
-      const dashWelcome = document.getElementById('chatWelcome');
-      const chatWelcome = document.getElementById('chatPageWelcome');
-      
-      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-    function appendMsg(boxId, role, text, safety) {
-      const box = document.getElementById(boxId);
-      const dashWelcome = document.getElementById('chatWelcome');
-      const chatWelcome = document.getElementById('chatPageWelcome');
-      
-      if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
-    function appendMsg(boxId, role, text, safety) {
-    const box = document.getElementById(boxId);
-    const dashWelcome = document.getElementById('chatWelcome');
-    const chatWelcome = document.getElementById('chatPageWelcome');
-    
-    if (dashWelcome && !dashWelcome.classList.contains('hidden')) {
-
 
         dashWelcome.classList.add('hidden');
       }
@@ -2221,7 +2241,7 @@
       
       box.appendChild(d);
       box.scrollTop = box.scrollHeight;
-    }
+    
 
     async function dashSend() {
       const inp = document.getElementById('dashMsg');
@@ -3205,20 +3225,8 @@ async function chatSend() {
         voiceBtn.addEventListener('click', startVoiceInput);
       }
     });
-  </script>
+</script>
 
-</body>
-
-
-    document.addEventListener('DOMContentLoaded', function() {
-      const voiceBtn = document.getElementById('voiceBtn');
-      if (voiceBtn) {
-        voiceBtn.addEventListener('click', startVoiceInput);
-      }
-    });
-  </script>
-
-</body>
 
 
 </body>
