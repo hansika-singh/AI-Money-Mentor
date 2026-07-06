@@ -165,6 +165,7 @@ AI-Money-Mentor/
 ├── models.py              ← SQLAlchemy ORM models
 ├── requirements.txt       ← Production dependencies
 ├── requirements-dev.txt   ← Dev/testing dependencies
+├── pyproject.toml         ← Project metadata & pytest config
 ├── .env.example           ← Environment variable template
 ├── templates/             ← Jinja2 HTML (40+ pages)
 ├── static/
@@ -173,10 +174,21 @@ AI-Money-Mentor/
 ├── utils/                 ← Utility modules (30+)
 │   └── config.py          ← Centralized configuration
 ├── tests/                 ← Pytest suite (20+ files)
-├── docs/                  ← Documentation
-│   └── api_spec.md        ← API specification
+├── docs/
+│   ├── api_spec.md        ← API specification
+│   ├── ARCHITECTURE.md    ← System architecture docs
+│   └── SETUP.md           ← Setup and configuration guide
 └── .github/               ← CI/CD workflows
 ```
+
+---
+
+## 📖 Documentation
+
+- [Architecture Overview](docs/ARCHITECTURE.md) — System design, database layout, and route inventory
+- [Setup Guide](docs/SETUP.md) — Installation, configuration, and troubleshooting
+- [API Specification](docs/api_spec.md) — Endpoint documentation
+- [Contributing Guide](CONTRIBUTING.md) — How to contribute to the project
 
 ---
 
