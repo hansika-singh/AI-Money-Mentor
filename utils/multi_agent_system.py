@@ -9,6 +9,8 @@ import re
 import json
 import time
 
+from utils.config import GROQ_MODEL
+
 
 class FinancialAgent:
     """Base class for specialized financial agents"""
@@ -51,7 +53,7 @@ Include specific numbers, percentages, or recommendations where possible."""
 
         try:
             response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": full_prompt},
                     {"role": "user", "content": query}
@@ -410,7 +412,7 @@ Ensure the plan flows logically and integrates all the agents' advice. Use markd
         
         try:
             response = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": "You are the Chief Financial Planner synthesizing expert advice."},
                     {"role": "user", "content": synthesis_prompt}
