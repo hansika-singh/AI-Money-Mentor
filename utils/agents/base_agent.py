@@ -5,6 +5,8 @@ Base Agent Class for Multi-Agent System
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
+from utils.config import GROQ_MODEL
+
 
 class BaseAgent(ABC):
     """Abstract base class for all agents"""
@@ -40,7 +42,7 @@ class BaseAgent(ABC):
         
         try:
             response = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=GROQ_MODEL,
                 messages=messages,
                 temperature=0.7,
                 max_tokens=500

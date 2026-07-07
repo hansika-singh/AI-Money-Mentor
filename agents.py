@@ -1,6 +1,12 @@
 from groq import Groq, GroqError
 import os
+import sys
 from dotenv import load_dotenv
+
+# Ensure sibling `utils/` package is importable when this file is invoked
+# directly as `python agents.py` from the project root.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.config import GROQ_MODEL  # noqa: E402
 
 # Load environment variables
 load_dotenv()
@@ -14,7 +20,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY", "YOUR_API_KEY"))
 def sip_agent(query):
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",   # fast & free
+            model=GROQ_MODEL,   # uses utils.config.GROQ_MODEL
             messages=[
                 {"role": "system", "content": "You are a SIP investment advisor for India."},
                 {"role": "user", "content": query}
@@ -35,7 +41,7 @@ def sip_agent(query):
 def tax_agent(query):
     try:
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model=GROQ_MODEL,
             messages=[
                 {"role": "system", "content": "You are a tax advisor for India."},
                 {"role": "user", "content": query}
@@ -66,7 +72,7 @@ def route_query(query):
 
     try:
         response = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model=GROQ_MODEL,
             messages=[{"role": "user", "content": routing_prompt}]
         )
         decision = response.choices[0].message.content.strip().upper()
