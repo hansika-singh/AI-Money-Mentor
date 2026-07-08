@@ -175,7 +175,7 @@ function renderWatchlist(items) {
                 `).join('')}
               </td>
               <td style="padding:12px;text-align:right;">
-                <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;" onclick="showAlertModal(${item.id}, '${esc(item.symbol)}')">🔔 Alert</button>
+                <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;" data-item-id="${item.id}" data-symbol="${esc(item.symbol)}" onclick="showAlertModal(this.dataset.itemId, this.dataset.symbol)">🔔 Alert</button>
                 <button class="btn btn-ghost" style="font-size:11px;padding:4px 8px;color:var(--red, #f44336);" onclick="removeItem(${item.id})">✕</button>
               </td>
             </tr>

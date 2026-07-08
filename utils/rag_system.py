@@ -249,7 +249,7 @@ class RAGSystem:
                 return {'success': False, 'error': 'Could not extract text from document'}
             
             # Generate document ID
-            doc_id = hashlib.md5(file_path.encode()).hexdigest()
+            doc_id = hashlib.sha256(file_path.encode()).hexdigest()
             
             # Chunk text
             chunks = self.chunk_text(text)

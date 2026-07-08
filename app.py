@@ -10,6 +10,7 @@ import os
 import sys
 import csv
 import logging
+import secrets
 from functools import wraps
 from groq import Groq
 from fpdf import FPDF
@@ -32,10 +33,17 @@ from flask_mail import Mail, Message
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule, ExpenseGroup, GroupMember, GroupExpense, GroupExpenseSplit, GroupSettlement, Watchlist, WatchlistItem, WatchlistAlert, InsurancePolicy, InsuranceRecommendation
+from models import (
+    db, Expense, Asset, Liability, BudgetLimit, BudgetAlert,
+    PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense,
+    Portfolio, Account, Transaction, LedgerEntry, FxRateCache,
+    FinancialGoalMilestone, RecurringIncome, IncomeOccurrence,
+    MilestoneNotification, SipSchedule, ExpenseGroup, GroupMember,
+    GroupExpense, GroupExpenseSplit, GroupSettlement,
+    Watchlist, WatchlistItem, WatchlistAlert,
+    RiskProfile, InsurancePolicy, InsuranceRecommendation,
+)
 
-
-from models import db, Expense, Asset, Liability, BudgetLimit, BudgetAlert, PriceAlert, PriceAlertEvent, FinancialGoal, RecurringExpense, Portfolio, Account, Transaction, LedgerEntry, FxRateCache, FinancialGoalMilestone, RecurringIncome, IncomeOccurrence, MilestoneNotification, SipSchedule, ExpenseGroup, GroupMember, GroupExpense, GroupExpenseSplit, GroupSettlement, RiskProfile, InsurancePolicy, InsuranceRecommendation
 
 
 
@@ -185,9 +193,9 @@ app = Flask(__name__)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER', 'your-email@gmail.com')
-app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS', 'your-app-password')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('EMAIL_USER', 'your-email@gmail.com')
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASS')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('EMAIL_USER')
 
 mail = Mail(app)
 
@@ -213,10 +221,10 @@ if not _secret_key:
             "python -c \"import secrets; print(secrets.token_hex(32))\" "
             "and set it before starting the app (see .env.example)."
         )
-    _secret_key = "dev-secret-key"
+    _secret_key = secrets.token_hex(32)
     print(
-        "[WARNING] SECRET_KEY not set - using an insecure development "
-        "fallback. Set SECRET_KEY in the environment before deploying."
+        "[WARNING] SECRET_KEY not set - generated a random ephemeral key "
+        "for this session. Set SECRET_KEY in the environment before deploying."
     )
 app.config["SECRET_KEY"] = _secret_key
 
@@ -6891,37 +6899,6 @@ def refresh_watchlist_prices():
         result.append(d)
 
     return jsonify({"items": result})
-
-
-    answers = {}
-    for q in RISK_QUESTIONS:
-        val = data.get(q["key"])
-        if val not in q["options"]:
-            raise ValidationError(f"Invalid option for '{q['key']}': must be one of {q['options']}")
-        answers[q["key"]] = val
-
-    risk_category, risk_score = _calculate_risk_score(answers)
-    alloc = RISK_ALLOCATIONS[risk_category]
-
-    profile = RiskProfile(
-        user_id=current_user.id,
-        risk_category=risk_category,
-        risk_score=risk_score,
-        age_range=answers.get("age_range"),
-        income_stability=answers.get("income_stability"),
-        risk_tolerance=answers.get("risk_tolerance"),
-        investment_horizon=answers.get("investment_horizon"),
-        loss_capacity=answers.get("loss_capacity"),
-        existing_experience=answers.get("existing_experience"),
-        equity_pct=alloc["equity"],
-        debt_pct=alloc["debt"],
-        gold_pct=alloc["gold"],
-        cash_pct=alloc["cash"],
-    )
-    db.session.add(profile)
-    db.session.commit()
-
-    return jsonify({"profile": profile.to_dict()}), 201
 
 
 @app.route("/api/risk-profile/advice", methods=["GET"])
