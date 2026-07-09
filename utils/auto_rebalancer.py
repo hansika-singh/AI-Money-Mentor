@@ -215,8 +215,8 @@ class AutoRebalancer:
                     'loss': round(abs(pnl), 2),
                     'invested': round(invested, 2),
                     'current': round(current, 2),
-                    'harvestable_loss': min(abs(pnl), 3000),  # IRS limit
-                    'suggestion': f'Consider selling {h["symbol"]} to realize ₹{min(abs(pnl), 3000):,.2f} loss'
+                    'harvestable_loss': round(abs(pnl), 2),
+                    'suggestion': f'Consider selling {h["symbol"]} to realize ₹{abs(pnl):,.2f} loss'
                 })
         
         return sorted(opportunities, key=lambda x: x['loss'], reverse=True)
