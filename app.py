@@ -1001,11 +1001,7 @@ def voice_test():
     })
 
 
-# ---------------- COUPLE FINANCE PLANNER ----------------
-
-
-  # ---------------- COUPLE FINANCE PLANNER ----------------
-        # ---------------- MFA SYSTEM ----------------
+# ---------------- MFA SYSTEM ----------------
 from utils.mfa_system import MFASystem
 
 @app.route('/security-settings')
@@ -1023,12 +1019,8 @@ def couple_planner_page():
 
 @app.route('/api/mfa/status', methods=['GET'])
 @login_required
-
 def mfa_status():
     """Get MFA status"""
-
-def couple_status():
-
     try:
         mfa = MFASystem(current_user)
         status = mfa.get_mfa_status()
@@ -1038,7 +1030,6 @@ def couple_status():
 
 @app.route('/api/mfa/totp/setup', methods=['GET'])
 @login_required
-
 def mfa_totp_setup():
     """Setup TOTP"""
     try:
@@ -1056,54 +1047,28 @@ def mfa_totp_setup():
             'error': str(e)
         }), 500
 
-def couple_invite():
-    try:
-        data = request.json
-        email = data.get('email')
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-        result = couple_manager.create_invitation(current_user.id, email)
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/mfa/totp/verify', methods=['POST'])
 @login_required
-
 def mfa_totp_verify():
     """Verify TOTP code"""
     try:
         data = request.json
         code = data.get('code')
-        
+
         if not code:
             return jsonify({'error': 'Code is required'}), 400
-        
+
         mfa = MFASystem(current_user)
         if mfa.verify_totp(code):
             return jsonify({'success': True, 'message': 'TOTP verified and enabled'})
         else:
             return jsonify({'error': 'Invalid code'}), 400
-        
+
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
-
-
-def couple_accept():
-    try:
-        data = request.json
-        token = data.get('token')
-        if not token:
-            return jsonify({'error': 'Token is required'}), 400
-        result = couple_manager.accept_invitation(current_user.id, token)
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/mfa/webauthn/setup', methods=['GET'])
 @login_required
@@ -1131,92 +1096,41 @@ def mfa_webauthn_verify():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/couple/goals', methods=['GET'])
-@login_required
-def get_couple_goals():
-    """Get shared goals"""
-    try:
-        status = couple_manager.get_couple_status(current_user.id)
-
-        if not status.get('has_couple'):
-            return jsonify({'error': 'No couple found'}), 400
-
-        goals = couple_manager.get_shared_goals(status['couple_id'])
-
-        return jsonify({
-            'success': True,
-            'goals': goals
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/mfa/devices', methods=['GET'])
 @login_required
-
 def mfa_get_devices():
     """Get trusted devices"""
     try:
         mfa = MFASystem(current_user)
         devices = mfa.get_trusted_devices()
         return jsonify({'success': True, 'devices': devices})
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def create_goal():
-    try:
-        data = request.json
-        status = couple_manager.get_couple_status(current_user.id)
-        if not status.get('has_couple'):
-            return jsonify({'error': 'No couple found'}), 400
-        result = couple_manager.create_shared_goal(status['couple_id'], data)
-        return jsonify(result)
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/mfa/devices/add', methods=['POST'])
 @login_required
-
 def mfa_add_device():
     """Add trusted device"""
     try:
         data = request.json
         device_name = data.get('device_name')
-        
+
         if not device_name:
             return jsonify({'error': 'Device name is required'}), 400
-        
+
         mfa = MFASystem(current_user)
         device = mfa.add_trusted_device(
             device_name,
             request.headers.get('User-Agent'),
             request.remote_addr
         )
-        
+
         return jsonify({'success': True, 'device': device.to_dict()})
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def contribute_goal():
-    try:
-        data = request.json
-        goal_id = data.get('goal_id')
-        amount = data.get('amount')
-        note = data.get('note', '')
-        if not goal_id or not amount:
-            return jsonify({'error': 'Goal ID and amount required'}), 400
-        result = couple_manager.add_goal_contribution(current_user.id, goal_id, amount, note)
-        return jsonify(result)
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/mfa/devices/remove/<int:device_id>', methods=['DELETE'])
 @login_required
-
 def mfa_remove_device(device_id):
     """Remove trusted device"""
     try:
@@ -1225,29 +1139,11 @@ def mfa_remove_device(device_id):
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Device not found'}), 404
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500 
-    
-
-def get_split_expenses():
-    try:
-        status = couple_manager.get_couple_status(current_user.id)
-        if not status.get('has_couple'):
-            return jsonify({'error': 'No couple found'}), 400
-        settled = request.args.get('settled')
-        if settled is not None:
-            settled = settled.lower() == 'true'
-        expenses = couple_manager.get_split_expenses(status['couple_id'], settled)
-        summary = couple_manager.get_expense_summary(status['couple_id'])
-        return jsonify({'success': True, 'expenses': expenses, 'summary': summary})
-
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/mfa/backup-codes', methods=['POST'])
 @login_required
-
 def mfa_generate_backup_codes():
     """Generate backup codes"""
     try:
@@ -1268,7 +1164,6 @@ def mfa_security_events():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/mfa/disable', methods=['POST'])
 @login_required
 def mfa_disable():
@@ -1279,7 +1174,6 @@ def mfa_disable():
             return jsonify({'success': True, 'message': 'MFA disabled'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 # ---------------- DOCUMENT PARSER ----------------
 from utils.document_parser import DocumentParser
@@ -2108,7 +2002,7 @@ def couple_unlink():
 
 @app.route('/api/couple/goals', methods=['GET'])
 @login_required
-def get_goals():
+def get_couple_shared_goals():
 
     """Get shared goals"""
 
